@@ -10,13 +10,10 @@ I become lazy to download tracks from my old Garmin GPS regularly so they piled 
 
 # Description
 - iterates through GPX files matching hard-coded mask
-- downloads (steals) map tiles of location into the hard-coded cache directory (works with osm.org or mapy.cz)
+- downloads map tiles of location into the hard-coded cache directory (works with osm.org)
 - creates the image with the map of area
 - draws track segments from GPX files
 - saves the image
-
-# Notes
-- few things are hardcoded at different places, sorry for that
 
 # Result (example)
 ![20120812.png](http://i.imgur.com/NU9OcGb.png)
