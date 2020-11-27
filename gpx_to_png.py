@@ -14,8 +14,8 @@ osm_tile_res = 256
 def format_time(time_s):
     if not time_s:
         return 'n/a'
-    minutes = math.floor(time_s / 60.)
-    hours = math.floor(minutes / 60.)
+    minutes = math.floor(time_s / 60)
+    hours = math.floor(minutes / 60)
     return '%s:%s:%s' % (str(int(hours)).zfill(2), str(int(minutes % 60)).zfill(2), str(int(time_s % 60)).zfill(2)) 
 
 def get_tile_url (x, y, z):
@@ -31,9 +31,9 @@ def osm_lat_lon_to_x_y_tile (lat_deg, lon_deg, zoom):
     """ Gets tile containing given coordinate at given zoom level """
     # taken from http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames, works for OSM maps
     lat_rad = math.radians(lat_deg)
-    n = 2.0 ** zoom
-    xtile = int((lon_deg + 180.0) / 360.0 * n)
-    ytile = int((1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n)
+    n = 2 ** zoom
+    xtile = int((lon_deg + 180) / 360 * n)
+    ytile = int((1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2 * n)
     return (xtile, ytile)
 
 def osm_get_auto_zoom_level ( min_lat, max_lat, min_lon, max_lon, max_n_tiles):
@@ -106,8 +106,8 @@ class MapCreator:
         """ Internal. Converts lat, lon into dst_img coordinates in pixels """
         lat_rad = math.radians(lat_deg)
         n = 2.0 ** self.z
-        xtile_frac = (lon_deg + 180.0) / 360.0 * n
-        ytile_frac = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n
+        xtile_frac = (lon_deg + 180) / 360 * n
+        ytile_frac = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2 * n
         img_x = int( (xtile_frac-self.x1)*osm_tile_res )
         img_y = int( (ytile_frac-self.y1)*osm_tile_res )
         return (img_x, img_y)
@@ -163,7 +163,7 @@ if (__name__ == '__main__'):
             moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx.get_moving_data()
             print('  Moving time   : %s' % format_time(moving_time))
             print('  Stopped time  : %s' % format_time(stopped_time))
-            print('  Max speed     : %2.2fm/s = %2.2fkm/h' % (max_speed, max_speed * 60. ** 2 / 1000.))    
+            print('  Max speed     : %2.2fm/s = %2.2fkm/h' % (max_speed, max_speed * 60 ** 2 / 1000))    
             uphill, downhill = gpx.get_uphill_downhill()
             print('  Total uphill  : %4.0fm' % uphill)
             print('  Total downhill: %4.0fm' % downhill)
