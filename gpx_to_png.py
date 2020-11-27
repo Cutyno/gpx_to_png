@@ -3,13 +3,65 @@
 import sys
 import math
 import logging
-import urllib
+import requests
 import os
 import gpxpy
 from PIL import Image as pil_image
 from PIL import ImageDraw as pil_draw
 import glob
+
+# Constance
 osm_tile_res = 256
+max_tile = 1
+margin = 0.01
+server = "osm-de"
+urls = {
+    "toner" : [
+        "http://tile.stamen.com/toner/{z}/{x}/{y}.png",
+        "http://a.tile.stamen.com/toner/{z}/{x}/{y}.png",
+        "http://b.tile.stamen.com/toner/{z}/{x}/{y}.png",
+        "http://c.tile.stamen.com/toner/{z}/{x}/{y}.png",
+        "http://d.tile.stamen.com/toner/{z}/{x}/{y}.png"
+    ],
+    "terrain" : [
+        "http://tile.stamen.com/terrain/{z:n}/{x:n}/{y:n}.png",
+        "http://a.tile.stamen.com/terrain/{z}/{x}/{y}.png",
+        "http://b.tile.stamen.com/terrain/{z}/{x}/{y}.png",
+        "http://c.tile.stamen.com/terrain/{z}/{x}/{y}.png",
+        "http://d.tile.stamen.com/terrain/{z}/{x}/{y}.png"
+    ],
+    "watercolor" : [
+        "http://tile.stamen.com/watercolor/{z}/{x}/{y}.png",
+        "http://a.tile.stamen.com/watercolor/{z}/{x}/{y}.png",
+        "http://b.tile.stamen.com/watercolor/{z}/{x}/{y}.png",
+        "http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png",
+        "http://d.tile.stamen.com/watercolor/{z}/{x}/{y}.png"
+    ],
+    "osm" : [
+        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    ],
+    "osm-de" : [ 
+        "https://a.tile.openstreetmap.de/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.de/{z}/{x}/{y}.png",
+        "https://c.tile.openstreetmap.de/{z}/{x}/{y}.png"
+    ],
+    "humanitarian" : [ 
+        "http://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+        "http://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+    ],
+    "osm-fr" : [ 
+        "http://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
+        "http://b.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
+        "http://c.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png"
+    ],
+    "topo" : [ 
+        "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
+    ]
+}
 
 def format_time(time_s):
     if not time_s:
@@ -18,11 +70,14 @@ def format_time(time_s):
     hours = math.floor(minutes / 60)
     return '%s:%s:%s' % (str(int(hours)).zfill(2), str(int(minutes % 60)).zfill(2), str(int(time_s % 60)).zfill(2)) 
 
-def get_tile_url (x, y, z):
-    return "http://a.tile.stamen.com/toner/%d/%d/%d.png" % (z, x, y)
+def get_tile_urls (x, y, z, name):
+    servers = urls[name].copy()
+    for i in range(len(servers)):
+        servers[i] = servers[i].format(x = x, y = y, z = z)
+    return servers
 
-def get_tile_filename (x, y, z):
-    return r"tmp/%d/%d/%d.png" % (z, x, y)
+def get_tile_filename (x:int, y:int, z:int, name:str):
+    return r"tmp/%s/%d/%d/%d.png" % (name, z, x, y)
 
 def get_map_suffix ():
     return "map"
@@ -49,22 +104,31 @@ def osm_get_auto_zoom_level ( min_lat, max_lat, min_lon, max_lon, max_n_tiles):
 
 def osm_cache_tile (x,y,z):
     """ Downloads tile x,y,x into cache. Directories are automatically created, existing files are not retrieved. """
-    src_url = get_tile_url(x,y,z)
-    dst_filename = get_tile_filename(x,y,z)
+    src_urls = get_tile_urls(x,y,z,server)
+    dst_filename = get_tile_filename(x,y,z,server)
 
     dst_dir = os.path.dirname(dst_filename)
     if not os.path.exists(dst_dir):
         os.makedirs(dst_dir)    
     if os.path.isfile (dst_filename):
         return
-
-    print ("Downloading %s ..." % src_url)
-    request = urllib.request.Request (src_url)
-    response = urllib.request.urlopen (request)
-    data = response.read();    
-    f = open(dst_filename, "wb")
-    f.write(data)
-    f.close()
+    data = None
+    for i in range(len(src_urls)):
+        print ("Downloading from Mirror %d: %s ..." % (i, src_urls[i]))
+        try:
+            response = requests.get(src_urls[i])
+            code = response.status_code
+            if code == 200:
+                data = response.content
+                break
+            else:
+                print ("Error occurred! Response code: %d" % code)
+        except:
+            print ("ERROR BY ACCESSING URL: %s" % src_urls[i])
+    if data != None:
+        f = open(dst_filename, "wb")
+        f.write(data)
+        f.close()
 
 class MapCreator:
     """ Class for map drawing """
@@ -95,12 +159,13 @@ class MapCreator:
         for y in range (self.y1, self.y2+1):
             for x in range (self.x1, self.x2+1):
                 try:
-                    src_img = pil_image.open (get_tile_filename (x, y, z))
-                    dst_x = (x-self.x1)*osm_tile_res
-                    dst_y = (y-self.y1)*osm_tile_res
-                    self.dst_img.paste (src_img, (dst_x, dst_y))
+                    src_img = pil_image.open (get_tile_filename (x, y, z, server))
                 except Exception as e:
-                    print("Error processing file " + get_tile_filename (x, y, z))
+                    print("Error processing file " + get_tile_filename (x, y, z, server))
+                    src_img = pil_image.open("error.png")
+                dst_x = (x-self.x1)*osm_tile_res
+                dst_y = (y-self.y1)*osm_tile_res
+                self.dst_img.paste (src_img, (dst_x, dst_y))
 
     def lat_lon_to_image_xy (self, lat_deg, lon_deg):
         """ Internal. Converts lat, lon into dst_img coordinates in pixels """
@@ -126,7 +191,7 @@ class MapCreator:
                         x_from, y_from = self.lat_lon_to_image_xy (point.latitude, point.longitude)
                     else:
                         x_to, y_to = self.lat_lon_to_image_xy (point.latitude, point.longitude)
-                        draw.line ((x_from,y_from,x_to,y_to), (255,0,255), 15)
+                        draw.line ((x_from,y_from,x_to,y_to), (255,0,0), 3)
                         x_from = x_to
                         y_from = y_to
                     idx += 1
@@ -169,11 +234,11 @@ if (__name__ == '__main__'):
             print('  Total downhill: %4.0fm' % downhill)
             min_lat, max_lat, min_lon, max_lon = gpx.get_bounds()
             print("  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]" % (min_lat, max_lat, min_lon, max_lon))
-            z = osm_get_auto_zoom_level (min_lat, max_lat, min_lon, max_lon, 9)
+            z = osm_get_auto_zoom_level (min_lat, max_lat, min_lon, max_lon, max_tile)
             print("  Zoom Level    : %d" % z)
 
             # Create the map
-            map_creator = MapCreator (min_lat, max_lat, min_lon, max_lon, z)
+            map_creator = MapCreator (min_lat-margin, max_lat+margin, min_lon-margin, max_lon+margin, z)
             map_creator.cache_area()
             map_creator.create_area_background()
             map_creator.draw_track(gpx)
