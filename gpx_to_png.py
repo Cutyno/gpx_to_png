@@ -14,7 +14,7 @@ import glob
 osm_tile_res = 256
 max_tile = 1
 margin = 0.01
-server = "osm-de"
+server = "terrain"
 urls = {
     "toner" : [
         "http://tile.stamen.com/toner/{z}/{x}/{y}.png",
@@ -191,7 +191,7 @@ class MapCreator:
                         x_from, y_from = self.lat_lon_to_image_xy (point.latitude, point.longitude)
                     else:
                         x_to, y_to = self.lat_lon_to_image_xy (point.latitude, point.longitude)
-                        draw.line ((x_from,y_from,x_to,y_to), (255,0,0), 3)
+                        draw.line ((x_from,y_from,x_to,y_to), (255,0,0), 4, "curve")
                         x_from = x_to
                         y_from = y_to
                     idx += 1
@@ -208,7 +208,7 @@ if (__name__ == '__main__'):
         for i in range(1, len(sys.argv)):
             gpx_files.extend( glob.glob (r"{}/*.gpx".format(sys.argv[i])) )
     else:
-        gpx_files = glob.glob (r"*.gpy")
+        gpx_files = glob.glob (r"*.gpx")
 
     if not gpx_files:
         print('No GPX files given')
