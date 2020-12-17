@@ -159,9 +159,9 @@ class MapCreator:
         for y in range (self.y1, self.y2+1):
             for x in range (self.x1, self.x2+1):
                 try:
-                    src_img = pil_image.open (get_tile_filename (x, y, z, server))
+                    src_img = pil_image.open (get_tile_filename (x, y, self.z, server))
                 except Exception as e:
-                    print("Error processing file " + get_tile_filename (x, y, z, server))
+                    print("Error processing file " + get_tile_filename (x, y, self.z, server))
                     src_img = pil_image.open("error.png")
                 dst_x = (x-self.x1)*osm_tile_res
                 dst_y = (y-self.y1)*osm_tile_res
@@ -178,7 +178,7 @@ class MapCreator:
         return (img_x, img_y)
 
 
-    def draw_track (self, gpx):
+    def draw_track (self, gpx, color, thickness):
         """ Draw GPX track onto map """
         draw = pil_draw.Draw (self.dst_img)
         for track in gpx.tracks:
@@ -191,7 +191,7 @@ class MapCreator:
                         x_from, y_from = self.lat_lon_to_image_xy (point.latitude, point.longitude)
                     else:
                         x_to, y_to = self.lat_lon_to_image_xy (point.latitude, point.longitude)
-                        draw.line ((x_from,y_from,x_to,y_to), (255,0,0), 4, "curve")
+                        draw.line ((x_from,y_from,x_to,y_to), color, thickness, "curve")
                         x_from = x_to
                         y_from = y_to
                     idx += 1
@@ -241,7 +241,7 @@ if (__name__ == '__main__'):
             map_creator = MapCreator (min_lat-margin, max_lat+margin, min_lon-margin, max_lon+margin, z)
             map_creator.cache_area()
             map_creator.create_area_background()
-            map_creator.draw_track(gpx)
+            map_creator.draw_track(gpx, (255,0,0), 4)
             map_creator.save_image (gpx_file[:-4] + '-' + get_map_suffix() + '.png')
 
         except Exception as e:
