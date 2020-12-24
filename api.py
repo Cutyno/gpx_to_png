@@ -5,6 +5,7 @@ from werkzeug.utils import redirect
 import gpx_to_png
 import io
 import gpxpy
+import yaml
 
 
 app = flask.Flask(__name__)
@@ -97,18 +98,31 @@ def get_gpx_map(map):
 
 @app.route("/api/v1/gpx", methods=['GET', 'POST'])
 def set_gpx_map():
-    return '''
-    <!doctype html>
+    if request.method == 'POST':
+        if request.form["map"] is not None:
+            print(request.form["map"])
+            return redirect("/api/v1/gpx/" + request.form["map"], code=307)
+        return redirect(url_for("page_not_found"))
+    page = '''<!doctype html>
     <title>Upload new gpx File</title>
-    <h1>Upload new File</h1>
-    <form method=post enctype=multipart/form-data action="/api/v1/gpx/terrain">
+    <h1>Upload new gpx File</h1>
+    <form method=post enctype=multipart/form-data action="/api/v1/gpx">
       <input type=file name=gpx>
-      <input type=submit value=Upload>
+      <select name=map>
+    '''
+    f = open("server.yaml", 'r')
+    url = yaml.load(f, Loader=yaml.BaseLoader)
+    for server in url.keys():
+        page += "<option value=" + server + ">" + server + "</option>\n"
+    page += '''</select>
+    <br><br>
+    <input type=submit value=Upload>
     </form>
     '''
+    return page
 
 @app.errorhandler(404)
 def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
-app.run()
+app.run(host="0.0.0.0", port=int("80"), debug=True)
