@@ -1,6 +1,6 @@
 FROM python:alpine
 
-RUN apk add \
+RUN apk --no-cache add \
     build-base \
     freetype-dev \
     fribidi-dev \
@@ -12,12 +12,19 @@ RUN apk add \
     tiff-dev \
     tk-dev \
     zlib-dev \
-    && pip install \
+    && pip install --no-cache-dir \
     pyyaml \
     gpxpy \
     pillow \
     requests \
-    flask
+    flask \
+    && apk del \
+    build-base \
+    freetype-dev \
+    fribidi-dev \
+    lcms2-dev \
+    tcl-dev \
+    tk-dev
 
 COPY . /
 
