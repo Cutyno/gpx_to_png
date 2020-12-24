@@ -1,0 +1,37 @@
+toner:
+  - http://tile.stamen.com/toner/{z}/{x}/{y}.png
+  - http://a.tile.stamen.com/toner/{z}/{x}/{y}.png
+  - http://b.tile.stamen.com/toner/{z}/{x}/{y}.png
+  - http://c.tile.stamen.com/toner/{z}/{x}/{y}.png
+  - http://d.tile.stamen.com/toner/{z}/{x}/{y}.png
+terrain:
+  - http://tile.stamen.com/terrain/{z:n}/{x:n}/{y:n}.png
+  - http://a.tile.stamen.com/terrain/{z}/{x}/{y}.png
+  - http://b.tile.stamen.com/terrain/{z}/{x}/{y}.png
+  - http://c.tile.stamen.com/terrain/{z}/{x}/{y}.png
+  - http://d.tile.stamen.com/terrain/{z}/{x}/{y}.png
+watercolor:
+  - http://tile.stamen.com/watercolor/{z}/{x}/{y}.png
+  - http://a.tile.stamen.com/watercolor/{z}/{x}/{y}.png
+  - http://b.tile.stamen.com/watercolor/{z}/{x}/{y}.png
+  - http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png
+  - http://d.tile.stamen.com/watercolor/{z}/{x}/{y}.png
+osm:
+  - https://a.tile.openstreetmap.org/{z}/{x}/{y}.png
+  - https://b.tile.openstreetmap.org/{z}/{x}/{y}.png
+  - https://c.tile.openstreetmap.org/{z}/{x}/{y}.png
+osm-de:
+  - https://a.tile.openstreetmap.de/{z}/{x}/{y}.png
+  - https://b.tile.openstreetmap.de/{z}/{x}/{y}.png
+  - https://c.tile.openstreetmap.de/{z}/{x}/{y}.png
+humanitarian:
+  - http://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png
+  - http://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png
+osm-fr:
+  - http://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png
+  - http://b.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png
+  - http://c.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png
+topo:
+  - https://a.tile.opentopomap.org/{z}/{x}/{y}.png
+  - https://b.tile.opentopomap.org/{z}/{x}/{y}.png
+  - https://c.tile.opentopomap.org/{z}/{x}/{y}.png

@@ -9,59 +9,14 @@ import gpxpy
 from PIL import Image as pil_image
 from PIL import ImageDraw as pil_draw
 import glob
+import yaml
+from yaml.loader import BaseLoader
 
 # Constance
 osm_tile_res = 256
 max_tile = 1
 margin = 0.01
-
-urls = {
-    "toner": [
-        "http://tile.stamen.com/toner/{z}/{x}/{y}.png",
-        "http://a.tile.stamen.com/toner/{z}/{x}/{y}.png",
-        "http://b.tile.stamen.com/toner/{z}/{x}/{y}.png",
-        "http://c.tile.stamen.com/toner/{z}/{x}/{y}.png",
-        "http://d.tile.stamen.com/toner/{z}/{x}/{y}.png"
-    ],
-    "terrain": [
-        "http://tile.stamen.com/terrain/{z:n}/{x:n}/{y:n}.png",
-        "http://a.tile.stamen.com/terrain/{z}/{x}/{y}.png",
-        "http://b.tile.stamen.com/terrain/{z}/{x}/{y}.png",
-        "http://c.tile.stamen.com/terrain/{z}/{x}/{y}.png",
-        "http://d.tile.stamen.com/terrain/{z}/{x}/{y}.png"
-    ],
-    "watercolor": [
-        "http://tile.stamen.com/watercolor/{z}/{x}/{y}.png",
-        "http://a.tile.stamen.com/watercolor/{z}/{x}/{y}.png",
-        "http://b.tile.stamen.com/watercolor/{z}/{x}/{y}.png",
-        "http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.png",
-        "http://d.tile.stamen.com/watercolor/{z}/{x}/{y}.png"
-    ],
-    "osm": [
-        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
-    ],
-    "osm-de": [
-        "https://a.tile.openstreetmap.de/{z}/{x}/{y}.png",
-        "https://b.tile.openstreetmap.de/{z}/{x}/{y}.png",
-        "https://c.tile.openstreetmap.de/{z}/{x}/{y}.png"
-    ],
-    "humanitarian": [
-        "http://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
-        "http://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
-    ],
-    "osm-fr": [
-        "http://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
-        "http://b.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
-        "http://c.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png"
-    ],
-    "topo": [
-        "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
-        "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
-        "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
-    ]
-}
+server_file = "server.yaml"
 
 
 def format_time(time_s):
@@ -100,12 +55,16 @@ class MapCacher:
 
     def __init__(self, map: str, folder: str) -> None:
         self.map_name = map
-        self.servers = urls[map].copy()
+        f = open(server_file, 'r')
+        self.servers = yaml.load(f, Loader=yaml.BaseLoader)[map] # Loader=yaml,BaseLoader Only loads the most basic YAML. All scalars are loaded as strings.
+        f.close()
         self.root = folder
 
     def change_server(self, map: str) -> None:
         self.map_name = map
-        self.servers = urls[map].copy()
+        f = open(server_file, 'r')
+        self.servers = yaml.load(f, Loader=yaml.BaseLoader)[map]
+        f.close()
 
     def get_tile_urls(self, x: int, y: int, z: int):
         remote = self.servers.copy()
