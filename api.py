@@ -4,7 +4,6 @@ from flask.helpers import url_for
 from werkzeug.utils import redirect
 import gpx_to_png
 import io
-import gpxpy
 import yaml
 
 
@@ -43,13 +42,10 @@ def get_gpx_map(map):
         if gpx_file and gpx_file.filename.rsplit('.', 1)[1].lower() == "gpx":
             try:
                 gpx = gpx_to_png.GpxObj(gpx_file)
-
                 # Print some track stats
                 print(gpx.stats)
-
                 # Cache the map
                 map_cacher = gpx_to_png.MapCacher(map, "tmp")
-
                 # Create the map
                 map_creator = gpx_to_png.MapCreator.from_gpx(gpx, gpx_to_png.margin)
                 map_creator.create_area_background(map_cacher)
