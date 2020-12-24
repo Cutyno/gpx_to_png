@@ -10,13 +10,13 @@ from PIL import Image as pil_image
 from PIL import ImageDraw as pil_draw
 import glob
 import yaml
-from yaml.loader import BaseLoader
 
 # Constance
 osm_tile_res = 256
 max_tile = 1
 margin = 0.01
 server_file = "server.yaml"
+tile_cache = "tmp"
 
 
 def format_time(time_s):
@@ -202,7 +202,7 @@ class MapCreator:
         print("Saving " + filename)
         self.dst_img.save(filename)
 
-def create_png(gpx_file):
+def create_png(gpx_file, map):
     try:
         gpx = gpxpy.parse(open(gpx_file))
 
@@ -230,7 +230,7 @@ def create_png(gpx_file):
         print("  Zoom Level    : %d" % z)
 
         # Cache the map
-        map_cacher = MapCacher("terrain", "tmp")
+        map_cacher = MapCacher(map, tile_cache)
 
         # Create the map
         map_creator = MapCreator(
@@ -259,4 +259,4 @@ if (__name__ == '__main__'):
         sys.exit(1)
 
     for gpx_file in gpx_files:
-        create_png(gpx_file)
+        create_png(gpx_file, "terrain")
