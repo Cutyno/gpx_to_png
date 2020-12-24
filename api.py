@@ -93,5 +93,4 @@ def set_gpx_map():
 def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
-app.run()
-#app.run(host="0.0.0.0", port=int("80"), debug=True)
+app.run(host="0.0.0.0", port=int("80"), debug=True)
