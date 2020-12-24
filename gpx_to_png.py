@@ -56,14 +56,22 @@ class MapCacher:
     def __init__(self, map: str, folder: str) -> None:
         self.map_name = map
         f = open(server_file, 'r')
-        self.servers = yaml.load(f, Loader=yaml.BaseLoader)[map] # Loader=yaml,BaseLoader Only loads the most basic YAML. All scalars are loaded as strings.
+        url = yaml.load(f, Loader=yaml.BaseLoader) # Loader=yaml,BaseLoader Only loads the most basic YAML. All scalars are loaded as strings.
+        try:
+            self.servers = url[map]
+        except KeyError:
+            self.servers = url["osm"]
         f.close()
         self.root = folder
 
     def change_server(self, map: str) -> None:
         self.map_name = map
         f = open(server_file, 'r')
-        self.servers = yaml.load(f, Loader=yaml.BaseLoader)[map]
+        url = yaml.load(f, Loader=yaml.BaseLoader) # Loader=yaml,BaseLoader Only loads the most basic YAML. All scalars are loaded as strings.
+        try:
+            self.servers = url[map]
+        except KeyError:
+            self.servers = url["osm"]
         f.close()
 
     def get_tile_urls(self, x: int, y: int, z: int):
