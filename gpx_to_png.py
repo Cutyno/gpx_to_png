@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-
 import sys
 import math
 import logging
+from typing import IO, TypeVar, Union
 import requests
 import os
 import gpxpy
@@ -123,7 +123,7 @@ class MapCacher:
 class MapCreator:
     """ Class for map drawing """
 
-    def __init__(self, min_lat, max_lat, min_lon, max_lon, z):
+    def __init__(self, min_lat, max_lat, min_lon, max_lon, z) -> None:
         """ constructor """
         x1, y1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
         x2, y2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
@@ -135,6 +135,10 @@ class MapCreator:
         self.h = (self.y2 - self.y1 + 1) * osm_tile_res
         self.z = z
         print(self.w, self.h)
+
+    @classmethod
+    def from_gpx(cls, gpx, margin):
+        return cls(gpx.min_lat-margin, gpx.max_lat+margin, gpx.min_lon-margin, gpx.max_lon+margin, gpx.z)
 
     def aspect_ratio(self, ratio_max, ratio_min):
         if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) > ratio_max:
@@ -202,42 +206,48 @@ class MapCreator:
         print("Saving " + filename)
         self.dst_img.save(filename)
 
+class GpxObj:
+    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]]) -> None:
+        self.gpx = gpxpy.parse(xml)
+        self.min_lat, self.max_lat, self.min_lon, self.max_lon = self.gpx.get_bounds()
+        self.z = osm_get_auto_zoom_level(self.min_lat, self.max_lat, self.min_lon, self.max_lon, max_tile)
+        
+        
+        
+    def stats(self) -> str:
+        result = '--------------------------------------------------------------------------------\n'
+        result += '  GPX file\n'
+        start_time, end_time = self.gpx.get_time_bounds()
+        result += '  Started       : %s\n' % start_time
+        result += '  Ended         : %s\n' % end_time
+        result += '  Length        : %2.2fkm\n' % (self.gpx.length_3d() / 1000.)
+        moving_time, stopped_time, moving_distance, stopped_distance, max_speed = self.gpx.get_moving_data()
+        result += '  Moving time   : %s\n' % format_time(moving_time)
+        result += '  Stopped time  : %s\n' % format_time(stopped_time)
+        result += '  Max speed     : %2.2fm/s = %2.2fkm/h' % (max_speed, max_speed * 60 ** 2 / 1000)
+        uphill, downhill = self.gpx.get_uphill_downhill()
+        result += '  Total uphill  : %4.0fm\n' % uphill
+        result += '  Total downhill: %4.0fm\n' % downhill
+        result += "  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n" % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
+        result += "  Zoom Level    : %d" % self.z
+
+
 def create_png(gpx_file, map):
     try:
-        gpx = gpxpy.parse(open(gpx_file))
+        # Load the Gpx file
+        gpx = GpxObj(open(gpx_file))
 
         # Print some track stats
-        print(
-            '--------------------------------------------------------------------------------')
-        print('  GPX file     : %s' % gpx_file)
-        start_time, end_time = gpx.get_time_bounds()
-        print('  Started       : %s' % start_time)
-        print('  Ended         : %s' % end_time)
-        print('  Length        : %2.2fkm' % (gpx.length_3d() / 1000.))
-        moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx.get_moving_data()
-        print('  Moving time   : %s' % format_time(moving_time))
-        print('  Stopped time  : %s' % format_time(stopped_time))
-        print('  Max speed     : %2.2fm/s = %2.2fkm/h' %
-              (max_speed, max_speed * 60 ** 2 / 1000))
-        uphill, downhill = gpx.get_uphill_downhill()
-        print('  Total uphill  : %4.0fm' % uphill)
-        print('  Total downhill: %4.0fm' % downhill)
-        min_lat, max_lat, min_lon, max_lon = gpx.get_bounds()
-        print("  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]" % (
-            min_lat, max_lat, min_lon, max_lon))
-        z = osm_get_auto_zoom_level(
-            min_lat, max_lat, min_lon, max_lon, max_tile)
-        print("  Zoom Level    : %d" % z)
+        print(gpx.stats())
 
         # Cache the map
         map_cacher = MapCacher(map, tile_cache)
 
         # Create the map
-        map_creator = MapCreator(
-            min_lat-margin, max_lat+margin, min_lon-margin, max_lon+margin, z)
+        map_creator = MapCreator.from_gpx(gpx, margin)
         map_creator.aspect_ratio(2, 1.5)
         map_creator.create_area_background(map_cacher)
-        map_creator.draw_track(gpx, (255, 0, 0), 4)
+        map_creator.draw_track(gpx.gpx, (255, 0, 0), 4)
         map_creator.save_image(gpx_file[:-4] + '-map.png')
 
     except Exception as e:
