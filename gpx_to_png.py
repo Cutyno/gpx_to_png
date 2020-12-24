@@ -194,6 +194,47 @@ class MapCreator:
         print("Saving " + filename)
         self.dst_img.save(filename)
 
+def create_png(gpx_file):
+    try:
+        gpx = gpxpy.parse(open(gpx_file))
+
+        # Print some track stats
+        print(
+            '--------------------------------------------------------------------------------')
+        print('  GPX file     : %s' % gpx_file)
+        start_time, end_time = gpx.get_time_bounds()
+        print('  Started       : %s' % start_time)
+        print('  Ended         : %s' % end_time)
+        print('  Length        : %2.2fkm' % (gpx.length_3d() / 1000.))
+        moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx.get_moving_data()
+        print('  Moving time   : %s' % format_time(moving_time))
+        print('  Stopped time  : %s' % format_time(stopped_time))
+        print('  Max speed     : %2.2fm/s = %2.2fkm/h' %
+              (max_speed, max_speed * 60 ** 2 / 1000))
+        uphill, downhill = gpx.get_uphill_downhill()
+        print('  Total uphill  : %4.0fm' % uphill)
+        print('  Total downhill: %4.0fm' % downhill)
+        min_lat, max_lat, min_lon, max_lon = gpx.get_bounds()
+        print("  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]" % (
+            min_lat, max_lat, min_lon, max_lon))
+        z = osm_get_auto_zoom_level(
+            min_lat, max_lat, min_lon, max_lon, max_tile)
+        print("  Zoom Level    : %d" % z)
+
+        # Cache the map
+        map_cacher = MapCacher("terrain", "tmp")
+
+        # Create the map
+        map_creator = MapCreator(
+            min_lat-margin, max_lat+margin, min_lon-margin, max_lon+margin, z)
+        map_creator.aspect_ratio(2, 1.5)
+        map_creator.create_area_background(map_cacher)
+        map_creator.draw_track(gpx, (255, 0, 0), 4)
+        map_creator.save_image(gpx_file[:-4] + '-map.png')
+
+    except Exception as e:
+        logging.exception(e)
+        print('Error processing %s' % gpx_file)
 
 if (__name__ == '__main__'):
     """ Program entry point """
@@ -210,44 +251,4 @@ if (__name__ == '__main__'):
         sys.exit(1)
 
     for gpx_file in gpx_files:
-        try:
-            gpx = gpxpy.parse(open(gpx_file))
-
-            # Print some track stats
-            print(
-                '--------------------------------------------------------------------------------')
-            print('  GPX file     : %s' % gpx_file)
-            start_time, end_time = gpx.get_time_bounds()
-            print('  Started       : %s' % start_time)
-            print('  Ended         : %s' % end_time)
-            print('  Length        : %2.2fkm' % (gpx.length_3d() / 1000.))
-            moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx.get_moving_data()
-            print('  Moving time   : %s' % format_time(moving_time))
-            print('  Stopped time  : %s' % format_time(stopped_time))
-            print('  Max speed     : %2.2fm/s = %2.2fkm/h' %
-                  (max_speed, max_speed * 60 ** 2 / 1000))
-            uphill, downhill = gpx.get_uphill_downhill()
-            print('  Total uphill  : %4.0fm' % uphill)
-            print('  Total downhill: %4.0fm' % downhill)
-            min_lat, max_lat, min_lon, max_lon = gpx.get_bounds()
-            print("  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]" % (
-                min_lat, max_lat, min_lon, max_lon))
-            z = osm_get_auto_zoom_level(
-                min_lat, max_lat, min_lon, max_lon, max_tile)
-            print("  Zoom Level    : %d" % z)
-
-            # Cache the map
-            map_cacher = MapCacher("terrain", "tmp")
-
-            # Create the map
-            map_creator = MapCreator(
-                min_lat-margin, max_lat+margin, min_lon-margin, max_lon+margin, z)
-            map_creator.aspect_ratio(2, 1.5)
-            map_creator.create_area_background(map_cacher)
-            map_creator.draw_track(gpx, (255, 0, 0), 4)
-            map_creator.save_image(gpx_file[:-4] + '-map.png')
-
-        except Exception as e:
-            logging.exception(e)
-            print('Error processing %s' % gpx_file)
-            sys.exit(1)
+        create_png(gpx_file)
