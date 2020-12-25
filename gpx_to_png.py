@@ -230,6 +230,7 @@ class GpxObj:
         result += '  Total downhill: %4.0fm\n' % downhill
         result += "  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n" % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
         result += "  Zoom Level    : %d" % self.z
+        return result
 
 
 def create_png(gpx_file, map):
@@ -267,6 +268,7 @@ if (__name__ == '__main__'):
     if not gpx_files:
         print('No GPX files given')
         sys.exit(1)
-
-    for gpx_file in gpx_files:
-        create_png(gpx_file, "terrain")
+    for i in range(len(gpx_files)):
+        percentage = i / len(gpx_files) * 100
+        print("progress: |%s>%s| [%d%%]" % (int(percentage/2)*"=", int(50-percentage/2)*" ", percentage))
+        create_png(gpx_files[i], "terrain")
