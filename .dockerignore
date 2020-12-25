@@ -1,0 +1,7 @@
+Dockerfile
+tmp/*
+metrics/*
+__pycache__
+.vscode
+.git
+.gitignore

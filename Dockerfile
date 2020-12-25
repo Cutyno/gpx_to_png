@@ -18,20 +18,22 @@ RUN apk --no-cache add \
     pillow \
     requests \
     flask \
+    uwsgi \
     && apk del \
     build-base \
-    freetype-dev \
     fribidi-dev \
     lcms2-dev \
     tcl-dev \
     tk-dev
 
+# RUN adduser -u 1000 --disabled-password --no-create-home www-data www-data
+
+# USER www-data:www-data
+
 COPY . /
 
-VOLUME [ "/tmp" ]
+VOLUME /tmp /metrics
 
 EXPOSE 80
 
-WORKDIR /
-
-ENTRYPOINT [ "python", "api.py" ]
+ENTRYPOINT ./start.sh

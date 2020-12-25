@@ -6,18 +6,19 @@ import gpx_to_png
 import io
 import yaml
 
-
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 
+
 @app.route("/api/v1/tile/<map>/<int:z>/<int:x>/<int:y>", methods=['GET'])
-def get_map_tile(map:str, z:int, x:int, y:int):
+def get_map_tile(map: str, z: int, x: int, y: int):
     map_cacher = gpx_to_png.MapCacher(map, "tmp")
     map_cacher.cache_tile(x, y, z)
     return flask.send_file(map_cacher.get_tile_filename(x, y, z), mimetype='image/png')
 
+
 @app.route("/api/v1/map/<map>/<int:z>/<float:lat_min>/<float:lat_max>/<float:lon_min>/<float:lon_max>", methods=['GET'])
-def get_map_background(map:str, z:int, lat_min:float, lat_max:float, lon_min:float, lon_max:float):
+def get_map_background(map: str, z: int, lat_min: float, lat_max: float, lon_min: float, lon_max: float):
     # Cache the map
     map_cacher = gpx_to_png.MapCacher(map, "tmp")
     # Create the map
@@ -27,6 +28,7 @@ def get_map_background(map:str, z:int, lat_min:float, lat_max:float, lon_min:flo
     map_creator.dst_img.save(f, format='PNG')
     f.seek(0)
     return flask.send_file(f, mimetype='image/png')
+
 
 @app.route("/api/v1/gpx/<map>", methods=['POST', 'GET'])
 def get_gpx_map(map):
@@ -47,7 +49,8 @@ def get_gpx_map(map):
                 # Cache the map
                 map_cacher = gpx_to_png.MapCacher(map, "tmp")
                 # Create the map
-                map_creator = gpx_to_png.MapCreator.from_gpx(gpx, gpx_to_png.margin)
+                map_creator = gpx_to_png.MapCreator.from_gpx(
+                    gpx, gpx_to_png.margin)
                 map_creator.create_area_background(map_cacher)
                 map_creator.draw_track(gpx.gpx, (255, 0, 0), 4)
                 f = io.BytesIO()
@@ -60,6 +63,7 @@ def get_gpx_map(map):
                 print('Error processing %s' % gpx_file)
                 return "<h1>500</h1><p>The process could not be finished.</p>", 500
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
+
 
 @app.route('/')
 @app.route("/home")
@@ -89,8 +93,10 @@ def set_gpx_map():
     '''
     return page
 
+
 @app.errorhandler(404)
 def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
-app.run(host="0.0.0.0", port=int("80"), debug=True)
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=int("80"), debug=True)
