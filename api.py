@@ -45,7 +45,7 @@ def get_gpx_map(map):
             try:
                 gpx = gpx_to_png.GpxObj(gpx_file)
                 # Print some track stats
-                print(gpx.stats)
+                print(gpx.stats())
                 # Cache the map
                 map_cacher = gpx_to_png.MapCacher(map, "tmp")
                 # Create the map
