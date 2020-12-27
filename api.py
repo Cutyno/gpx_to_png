@@ -14,7 +14,7 @@ app.config["DEBUG"] = True
 def get_map_tile(map: str, z: int, x: int, y: int):
     map_cacher = gpx_to_png.MapCacher(map, "tmp")
     map_cacher.cache_tile(x, y, z)
-    return flask.send_file(map_cacher.get_tile_filename(x, y, z), mimetype='image/png')
+    return flask.send_file(map_cacher.get_tile_filename(x, y, z), attachment_filename='%d.png' % y, mimetype='image/png', as_attachment=True)
 
 
 @app.route("/api/v1/map/<map>/<int:z>/<float:lat_min>/<float:lat_max>/<float:lon_min>/<float:lon_max>", methods=['GET'])
@@ -27,7 +27,7 @@ def get_map_background(map: str, z: int, lat_min: float, lat_max: float, lon_min
     f = io.BytesIO()
     map_creator.dst_img.save(f, format='PNG')
     f.seek(0)
-    return flask.send_file(f, mimetype='image/png')
+    return flask.send_file(f, attachment_filename='map.png', mimetype='image/png', as_attachment=True)
 
 
 @app.route("/api/v1/gpx/<map>", methods=['POST', 'GET'])
