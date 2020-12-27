@@ -56,7 +56,7 @@ def get_gpx_map(map):
                 f = io.BytesIO()
                 map_creator.dst_img.save(f, format='PNG')
                 f.seek(0)
-                return flask.send_file(f, mimetype='image/png')
+                return flask.send_file(f, attachment_filename=gpx_file.filename + '-map.png', mimetype='image/png', as_attachment=True)
 
             except Exception as e:
                 gpx_to_png.logging.exception(e)
