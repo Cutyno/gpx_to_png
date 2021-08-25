@@ -15,6 +15,9 @@ import yaml
 osm_tile_res = 256
 max_tile = 1
 margin = 0.01
+color_low = (4, 236, 240)
+color_high = (245, 23, 32)
+color_back = (255, 255, 255)
 server_file = "server.yaml"
 tile_cache = "tmp"
 
@@ -123,7 +126,7 @@ class MapCacher:
 class MapCreator:
     """ Class for map drawing """
 
-    def __init__(self, min_lat, max_lat, min_lon, max_lon, z) -> None:
+    def __init__(self, min_lat, max_lat, min_lon, max_lon, min_ele, max_ele, z) -> None:
         """ constructor """
         x1, y1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
         x2, y2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
@@ -131,6 +134,8 @@ class MapCreator:
         self.x2 = max(x1, x2)
         self.y1 = min(y1, y2)
         self.y2 = max(y1, y2)
+        self.e = min(min_ele, max_ele)
+        self.de = max(min_ele, max_ele) - self.e
         self.w = (self.x2 - self.x1 + 1) * osm_tile_res
         self.h = (self.y2 - self.y1 + 1) * osm_tile_res
         self.z = z
@@ -138,7 +143,7 @@ class MapCreator:
 
     @classmethod
     def from_gpx(cls, gpx, margin):
-        return cls(gpx.min_lat-margin, gpx.max_lat+margin, gpx.min_lon-margin, gpx.max_lon+margin, gpx.z)
+        return cls(gpx.min_lat-margin, gpx.max_lat+margin, gpx.min_lon-margin, gpx.max_lon+margin, gpx.min_ele, gpx.max_ele, gpx.z)
 
     def aspect_ratio(self, ratio_max, ratio_min):
         if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) > ratio_max:
@@ -181,8 +186,39 @@ class MapCreator:
         img_y = int((ytile_frac-self.y1)*osm_tile_res)
         return (img_x, img_y)
 
-    def draw_track(self, gpx, color, thickness):
+    def draw_track(self, gpx, color_array, thickness):
         """ Draw GPX track onto map """
+        draw = pil_draw.Draw(self.dst_img)
+        for track in gpx.tracks:
+            for segment in track.segments:
+                idx = 0
+                x_from = 0
+                y_from = 0
+                z_from = 0
+                for point in segment.points:
+                    if (idx == 0):
+                        x_from, y_from = self.lat_lon_to_image_xy(
+                            point.latitude, point.longitude)
+                        z_from = point.elevation
+                    else:
+                        x_to, y_to = self.lat_lon_to_image_xy(
+                            point.latitude, point.longitude)
+                        z_to = point.elevation
+                        z = ((z_from + z_to) / 2) - self.e
+                        color_idx = max(min(z / self.de, 1), 0)
+                        color0 = int((color_array[0][0] * (1 - color_idx)) + (color_array[1][0] * color_idx))
+                        color1 = int((color_array[0][1] * (1 - color_idx)) + (color_array[1][1] * color_idx))
+                        color2 = int((color_array[0][2] * (1 - color_idx)) + (color_array[1][2] * color_idx))
+                        color = (color0, color1, color2)
+                        draw.line((x_from, y_from, x_to, y_to),
+                                  color, thickness, "curve")
+                        x_from = x_to
+                        y_from = y_to
+                        z_from = z_to
+                    idx += 1
+
+    def draw_track_back(self, gpx, color, thickness):
+        """ Draw GPX background onto map """
         draw = pil_draw.Draw(self.dst_img)
         for track in gpx.tracks:
             for segment in track.segments:
@@ -193,6 +229,13 @@ class MapCreator:
                     if (idx == 0):
                         x_from, y_from = self.lat_lon_to_image_xy(
                             point.latitude, point.longitude)
+                        draw.ellipse(
+                            [
+                                x_from - thickness,
+                                y_from - thickness,
+                                x_from + thickness,
+                                y_from + thickness
+                            ], fill=color_back)
                     else:
                         x_to, y_to = self.lat_lon_to_image_xy(
                             point.latitude, point.longitude)
@@ -201,6 +244,13 @@ class MapCreator:
                         x_from = x_to
                         y_from = y_to
                     idx += 1
+                draw.ellipse(
+                    [
+                        x_from - thickness,
+                        y_from - thickness,
+                        x_from + thickness,
+                        y_from + thickness
+                    ], fill=color_back)
 
     def save_image(self, filename):
         print("Saving " + filename)
@@ -210,6 +260,7 @@ class GpxObj:
     def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]]) -> None:
         self.gpx = gpxpy.parse(xml)
         self.min_lat, self.max_lat, self.min_lon, self.max_lon = self.gpx.get_bounds()
+        self.min_ele, self.max_ele = self.gpx.get_elevation_extremes()
         self.z = osm_get_auto_zoom_level(self.min_lat, self.max_lat, self.min_lon, self.max_lon, max_tile)
         
         
@@ -228,8 +279,9 @@ class GpxObj:
         uphill, downhill = self.gpx.get_uphill_downhill()
         result += '  Total uphill  : %4.0fm\n' % uphill
         result += '  Total downhill: %4.0fm\n' % downhill
-        result += "  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n" % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
-        result += "  Zoom Level    : %d" % self.z
+        result += '  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n' % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
+        result += '  Elev. Bounds  : [%1.4f,%1.4f]\n' % (self.min_ele, self.max_ele)
+        result += '  Zoom Level    : %d' % self.z
         return result
 
 
@@ -248,7 +300,8 @@ def create_png(gpx_file, map):
         map_creator = MapCreator.from_gpx(gpx, margin)
         map_creator.aspect_ratio(2, 1.5)
         map_creator.create_area_background(map_cacher)
-        map_creator.draw_track(gpx.gpx, (255, 0, 0), 4)
+        map_creator.draw_track_back(gpx.gpx, color_back, 6)
+        map_creator.draw_track(gpx.gpx, (color_low, color_high), 4)
         map_creator.save_image(gpx_file[:-4] + '-map.png')
 
     except Exception as e:
