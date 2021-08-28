@@ -15,6 +15,7 @@ import yaml
 osm_tile_res = 256
 max_tile = 1
 margin = 0.01
+aspect_ratio = 2
 color_low = (4, 236, 240)
 color_high = (245, 23, 32)
 color_back = (255, 255, 255)
@@ -259,20 +260,25 @@ class MapCreator:
                         y_from + thickness
                     ], fill=color_back)
 
-    def crop_image(self, aspekt):
-        # aspekt = (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1)
+    def crop_image(self, aspect):
+        # aspect = (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1)
         x1 = abs(self.px)
         y1 = abs(self.py)
         x2 = x1 + self.dx
         y2 = y1 + self.dy
-        if(aspekt > 1):
-            dy = ((aspekt * self.dx) - self.dy) / 2
+        dy = aspect * self.dx
+        dx = self.dy / aspect
+        print("dy1 = %1.4f dy2 = %1.4f dx1 = %1.4f dx2 = %1.4f" % (self.dy, dy, self.dx, dx))
+        if(dy > self.dy):
+            dy = (dy - self.dy) / 2
             y1 -= dy
             y2 += dy
-        else:
-            dx = ((self.dy / aspekt) - self.dx) / 2
+        elif(dx > self.dx):
+            dx = (dx - self.dx) / 2
             x1 -= dx
             x2 += dx
+        else:
+            print("can't crop img")
         print(" crop to x1 = %1.4f y1 = %1.4f x2 = %1.4f y2 = %1.4f" % (x1, y1, x2, y2))
         self.dst_img = self.dst_img.crop((x1 * osm_tile_res, y1 * osm_tile_res, x2 * osm_tile_res, y2 * osm_tile_res))
 
@@ -327,7 +333,7 @@ def create_png(gpx_file, map):
         map_creator.create_area_background(map_cacher)
         map_creator.draw_track_back(gpx.gpx, color_back, 6)
         map_creator.draw_track(gpx.gpx, (color_low, color_high), 4)
-        map_creator.crop_image(0.5)
+        map_creator.crop_image(aspect_ratio)
         map_creator.save_image(gpx_file[:-4] + '-map.png')
 
     except Exception as e:
