@@ -13,16 +13,18 @@ import yaml
 
 # Constance
 osm_tile_res = 256
-max_tile = 2
-margin = 0.01
-aspect_ratio = 1.4
-color_low = (4, 236, 240)
-color_high = (245, 23, 32)
-color_back = (255, 255, 255)
-track_thickness = 5
-background_thickness = 7
 server_file = "server.yaml"
 tile_cache = "tmp"
+# Settings
+default_max_tile = 2
+default_margin = 0.01
+default_aspect_ratio = 1.4
+default_color_low = (4, 236, 240)
+default_color_high = (245, 23, 32)
+default_color_back = (255, 255, 255)
+default_track_thickness = 5
+default_background_thickness = 7
+default_map = "terrain"
 
 
 def format_time(time_s):
@@ -129,10 +131,10 @@ class MapCacher:
 class MapCreator:
     """ Class for map drawing """
 
-    def __init__(self, min_lat, max_lat, min_lon, max_lon, min_ele, max_ele, z) -> None:
+    def __init__(self, min_lat, max_lat, min_lon, max_lon, z, min_ele=0, max_ele=0, max_tile=default_max_tile, margin=0) -> None:
         """ constructor """
-        x1, y1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
-        x2, y2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
+        x1, y1 = osm_lat_lon_to_x_y_tile(min_lat - margin, min_lon - margin, z)
+        x2, y2 = osm_lat_lon_to_x_y_tile(max_lat + margin, max_lon + margin, z)
         self.dx = abs(x2 - x1)
         self.x1 = int(min(x1, x2)) - max_tile
         self.x2 = int(max(x1, x2)) + max_tile
@@ -150,8 +152,8 @@ class MapCreator:
         print(self.w, self.h)
 
     @classmethod
-    def from_gpx(cls, gpx, margin):
-        return cls(gpx.min_lat-margin, gpx.max_lat+margin, gpx.min_lon-margin, gpx.max_lon+margin, gpx.min_ele, gpx.max_ele, gpx.z)
+    def from_gpx(cls, gpx, _margin=0, max_tile=default_max_tile):
+        return cls(gpx.min_lat, gpx.max_lat, gpx.min_lon, gpx.max_lon, gpx.z, gpx.min_ele, gpx.max_ele, max_tile, _margin)
 
     def create_area_background(self, map_cacher: MapCacher):
         """ Creates background map from cached tiles """
@@ -230,7 +232,7 @@ class MapCreator:
                                 y_from - thickness,
                                 x_from + thickness,
                                 y_from + thickness
-                            ], fill=color_back)
+                            ], fill=color)
                     else:
                         x_to, y_to = self.lat_lon_to_image_xy(
                             point.latitude, point.longitude)
@@ -245,7 +247,7 @@ class MapCreator:
                         y_from - thickness,
                         x_from + thickness,
                         y_from + thickness
-                    ], fill=color_back)
+                    ], fill=color)
 
     def crop_image(self, aspect):
         # aspect = (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1)
@@ -275,7 +277,7 @@ class MapCreator:
         self.dst_img.save(filename)
 
 class GpxObj:
-    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]]) -> None:
+    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]], max_tile=default_max_tile) -> None:
         self.gpx = gpxpy.parse(xml)
         self.min_lat, self.max_lat, self.min_lon, self.max_lon = self.gpx.get_bounds()
         self.min_ele, self.max_ele = self.gpx.get_elevation_extremes()
@@ -302,33 +304,10 @@ class GpxObj:
         result += '  Zoom Level    : %d' % self.z
         return result
 
-
-def create_png(gpx_file, map):
-    try:
-        # Load the Gpx file
-        gpx = GpxObj(open(gpx_file))
-
-        # Print some track stats
-        print(gpx.stats())
-
-        # Cache the map
-        map_cacher = MapCacher(map, tile_cache)
-
-        # Create the map
-        map_creator = MapCreator.from_gpx(gpx, margin)
-        map_creator.create_area_background(map_cacher)
-        map_creator.draw_track_back(gpx.gpx, color_back, background_thickness)
-        map_creator.draw_track(gpx.gpx, (color_low, color_high), track_thickness)
-        map_creator.crop_image(aspect_ratio)
-        map_creator.save_image(gpx_file[:-4] + '-map.png')
-
-    except Exception as e:
-        logging.exception(e)
-        print('Error processing %s' % gpx_file)
-
 if (__name__ == '__main__'):
     """ Program entry point """
 
+    # Search for gpx files
     gpx_files = []
     if(len(sys.argv) > 1):
         for i in range(1, len(sys.argv)):
@@ -336,10 +315,43 @@ if (__name__ == '__main__'):
     else:
         gpx_files = glob.glob(r"*.gpx")
 
+    # Check gpx files
     if not gpx_files:
         print('No GPX files given')
         sys.exit(1)
+
     for i in range(len(gpx_files)):
+
+        # Print progress bar
         percentage = i / len(gpx_files) * 100
         print("progress: |%s>%s| [%d%%]" % (int(percentage/2)*"=", int(50-percentage/2)*" ", percentage))
-        create_png(gpx_files[i], "terrain")
+        try:
+
+            # Load the Gpx file
+            gpx = GpxObj(open(gpx_files[i]))
+
+            # Print some track stats
+            print(gpx.stats())
+
+            # Cache the map
+            map_cacher = MapCacher(default_map, tile_cache)
+
+            # Create the map
+            map_creator = MapCreator.from_gpx(gpx, default_margin)
+            map_creator.create_area_background(map_cacher)
+
+            # Draw background for better visibility
+            map_creator.draw_track_back(gpx.gpx, default_color_back, default_background_thickness)
+
+            # draw track
+            map_creator.draw_track(gpx.gpx, (default_color_low, default_color_high), default_track_thickness)
+
+            # cut img to desired dimensions
+            map_creator.crop_image(default_aspect_ratio)
+
+            # export img
+            map_creator.save_image(gpx_files[i][:-4] + '-map.png')
+
+        except Exception as e:
+            logging.exception(e)
+            print('Error processing %s' % gpx_files[i])
