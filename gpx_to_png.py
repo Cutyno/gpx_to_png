@@ -35,12 +35,10 @@ def osm_lat_lon_to_x_y_tile(lat_deg, lon_deg, zoom):
     # taken from http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames, works for OSM maps
     lat_rad = math.radians(lat_deg)
     n = 2 ** zoom
-    x = int((lon_deg + 180) / 360 * n)
-    y = int((1.0 - math.log(math.tan(lat_rad) +
-                                (1 / math.cos(lat_rad))) / math.pi) / 2 * n)
-    xtile = int(x)
-    ytile = int(y)
-    return (xtile, ytile, x-xtile, y-ytile)
+    xtile = (lon_deg + 180) / 360 * n
+    ytile = (1.0 - math.log(math.tan(lat_rad) +
+                                (1 / math.cos(lat_rad))) / math.pi) / 2 * n
+    return (xtile, ytile)
 
 
 def osm_get_auto_zoom_level(min_lat, max_lat, min_lon, max_lon, max_n_tiles):
@@ -130,16 +128,17 @@ class MapCreator:
 
     def __init__(self, min_lat, max_lat, min_lon, max_lon, min_ele, max_ele, z) -> None:
         """ constructor """
-        x1, y1, dx1, dy1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
-        x2, y2, dx2, dy2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
-        self.x1 = min(x1, x2)
-        self.x2 = max(x1, x2)
-        self.dx1 = min(dx1, dx2)
-        self.dx2 = max(dx1, dx2)
-        self.y1 = min(y1, y2)
-        self.y2 = max(y1, y2)
-        self.dy1 = min(dy1, dy2)
-        self.dy2 = max(dy1, dy2)
+        x1, y1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
+        x2, y2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
+        self.dx = abs(x2 - x1)
+        self.x1 = int(min(x1, x2))
+        self.x2 = int(max(x1, x2))
+        self.px = min(x1, x2) - self.x1
+        self.dy = abs(y2 - y1)
+        self.py = min(y1, y2)
+        self.y1 = int(min(y1, y2))
+        self.y2 = int(max(y1, y2))
+        self.py = min(y1, y2) - self.y1
         self.e = min(min_ele, max_ele)
         self.de = max(min_ele, max_ele) - self.e
         self.w = (self.x2 - self.x1 + 1) * osm_tile_res
@@ -154,16 +153,14 @@ class MapCreator:
     def aspect_ratio(self, ratio_max, ratio_min):
         if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) > ratio_max:
             self.x2 += 1
-            self.dx2 -= 1
             if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) > ratio_max:
                 self.x1 -= 1
-                self.dx1 += 1
+                self.px += 1
         elif (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) < ratio_min:
             self.y2 += 1
-            self.dy2 -= 1
             if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) < ratio_min:
                 self.y1 -= 1
-                self.dy1 += 1
+                self.py += 1
         self.w = (self.x2 - self.x1 + 1) * osm_tile_res
         self.h = (self.y2 - self.y1 + 1) * osm_tile_res
         print(self.w, self.h)
@@ -262,6 +259,24 @@ class MapCreator:
                         y_from + thickness
                     ], fill=color_back)
 
+    def crop_image(self, aspekt):
+        # aspekt = (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1)
+        x1 = abs(self.px)
+        y1 = abs(self.py)
+        x2 = x1 + self.dx
+        y2 = y1 + self.dy
+        if(aspekt > 1):
+            dy = ((aspekt * self.dx) - self.dy) / 2
+            y1 -= dy
+            y2 += dy
+        else:
+            dx = ((self.dy / aspekt) - self.dx) / 2
+            x1 -= dx
+            x2 += dx
+        print(" crop to x1 = %1.4f y1 = %1.4f x2 = %1.4f y2 = %1.4f" % (x1, y1, x2, y2))
+        self.dst_img = self.dst_img.crop((x1 * osm_tile_res, y1 * osm_tile_res, x2 * osm_tile_res, y2 * osm_tile_res))
+
+
     def save_image(self, filename):
         print("Saving " + filename)
         self.dst_img.save(filename)
@@ -312,6 +327,7 @@ def create_png(gpx_file, map):
         map_creator.create_area_background(map_cacher)
         map_creator.draw_track_back(gpx.gpx, color_back, 6)
         map_creator.draw_track(gpx.gpx, (color_low, color_high), 4)
+        map_creator.crop_image(0.5)
         map_creator.save_image(gpx_file[:-4] + '-map.png')
 
     except Exception as e:
