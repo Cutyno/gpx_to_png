@@ -1,3 +1,6 @@
 *.png
 *.pyc
 metrics/
+start.sh
+upgrade.sh
+docker-compose.yml

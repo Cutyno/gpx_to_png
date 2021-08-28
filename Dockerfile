@@ -36,4 +36,4 @@ VOLUME /tmp /metrics
 
 EXPOSE 80
 
-ENTRYPOINT ./start.sh
+ENTRYPOINT ./start_service.sh
