@@ -13,12 +13,14 @@ import yaml
 
 # Constance
 osm_tile_res = 256
-max_tile = 1
+max_tile = 2
 margin = 0.01
-aspect_ratio = 2
+aspect_ratio = 1.4
 color_low = (4, 236, 240)
 color_high = (245, 23, 32)
 color_back = (255, 255, 255)
+track_thickness = 5
+background_thickness = 7
 server_file = "server.yaml"
 tile_cache = "tmp"
 
@@ -132,13 +134,13 @@ class MapCreator:
         x1, y1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
         x2, y2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
         self.dx = abs(x2 - x1)
-        self.x1 = int(min(x1, x2))
-        self.x2 = int(max(x1, x2))
+        self.x1 = int(min(x1, x2)) - max_tile
+        self.x2 = int(max(x1, x2)) + max_tile
         self.px = min(x1, x2) - self.x1
         self.dy = abs(y2 - y1)
         self.py = min(y1, y2)
-        self.y1 = int(min(y1, y2))
-        self.y2 = int(max(y1, y2))
+        self.y1 = int(min(y1, y2)) - max_tile
+        self.y2 = int(max(y1, y2)) + max_tile
         self.py = min(y1, y2) - self.y1
         self.e = min(min_ele, max_ele)
         self.de = max(min_ele, max_ele) - self.e
@@ -150,21 +152,6 @@ class MapCreator:
     @classmethod
     def from_gpx(cls, gpx, margin):
         return cls(gpx.min_lat-margin, gpx.max_lat+margin, gpx.min_lon-margin, gpx.max_lon+margin, gpx.min_ele, gpx.max_ele, gpx.z)
-
-    def aspect_ratio(self, ratio_max, ratio_min):
-        if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) > ratio_max:
-            self.x2 += 1
-            if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) > ratio_max:
-                self.x1 -= 1
-                self.px += 1
-        elif (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) < ratio_min:
-            self.y2 += 1
-            if (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1) < ratio_min:
-                self.y1 -= 1
-                self.py += 1
-        self.w = (self.x2 - self.x1 + 1) * osm_tile_res
-        self.h = (self.y2 - self.y1 + 1) * osm_tile_res
-        print(self.w, self.h)
 
     def create_area_background(self, map_cacher: MapCacher):
         """ Creates background map from cached tiles """
@@ -329,10 +316,9 @@ def create_png(gpx_file, map):
 
         # Create the map
         map_creator = MapCreator.from_gpx(gpx, margin)
-        map_creator.aspect_ratio(2, 1.5)
         map_creator.create_area_background(map_cacher)
-        map_creator.draw_track_back(gpx.gpx, color_back, 6)
-        map_creator.draw_track(gpx.gpx, (color_low, color_high), 4)
+        map_creator.draw_track_back(gpx.gpx, color_back, background_thickness)
+        map_creator.draw_track(gpx.gpx, (color_low, color_high), track_thickness)
         map_creator.crop_image(aspect_ratio)
         map_creator.save_image(gpx_file[:-4] + '-map.png')
 
