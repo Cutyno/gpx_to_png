@@ -12,6 +12,7 @@ RUN apk --no-cache add \
     tiff-dev \
     tk-dev \
     zlib-dev \
+    libxcb-dev \
     && pip install --no-cache-dir \
     pyyaml \
     gpxpy \
