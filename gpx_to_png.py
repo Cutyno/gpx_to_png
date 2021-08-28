@@ -328,7 +328,7 @@ if (__name__ == '__main__'):
         try:
 
             # Load the Gpx file
-            gpx = GpxObj(open(gpx_files[i]))
+            gpx = GpxObj(open(gpx_files[i]), default_max_tile)
 
             # Print some track stats
             print(gpx.stats())
