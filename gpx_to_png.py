@@ -6,11 +6,11 @@ from typing import IO, TypeVar, Union
 import requests
 import os
 import gpxpy
-from PIL import Image as pil_image
-from PIL import ImageDraw as pil_draw
+from PIL import Image, ImageDraw, ImageCms
 import glob
 import yaml
 
+error_count = 0
 # Constance
 osm_tile_res = 256
 server_file = "server.yaml"
@@ -18,12 +18,12 @@ tile_cache = "tmp"
 # Settings
 default_max_tile = 2
 default_margin = 0.01
-default_aspect_ratio = 1.4
-default_color_low = (4, 236, 240)
-default_color_high = (245, 23, 32)
+default_aspect_ratio = 1.59
+default_color_low = (4, 236, 240, 204)
+default_color_high = (245, 23, 32, 204)
 default_color_back = (255, 255, 255)
-default_track_thickness = 5
-default_background_thickness = 7
+default_track_thickness = 7
+default_background_thickness = 10
 default_map = "terrain"
 
 
@@ -158,16 +158,16 @@ class MapCreator:
     def create_area_background(self, map_cacher: MapCacher):
         """ Creates background map from cached tiles """
         map_cacher.cache_area(self.x1, self.x2, self.y1, self.y2, self.z)
-        self.dst_img = pil_image.new("RGB", (self.w, self.h))
+        self.dst_img = Image.new("RGB", (self.w, self.h))
         for y in range(self.y1, self.y2+1):
             for x in range(self.x1, self.x2+1):
                 try:
-                    src_img = pil_image.open(
+                    src_img = Image.open(
                         map_cacher.get_tile_filename(x, y, self.z))
                 except Exception as e:
                     print("Error processing file " +
                           map_cacher.get_tile_filename(x, y, self.z))
-                    src_img = pil_image.open("error.png")
+                    src_img = Image.open("error.png")
                 dst_x = (x-self.x1)*osm_tile_res
                 dst_y = (y-self.y1)*osm_tile_res
                 self.dst_img.paste(src_img, (dst_x, dst_y))
@@ -185,69 +185,60 @@ class MapCreator:
 
     def draw_track(self, gpx, color_array, thickness):
         """ Draw GPX track onto map """
-        draw = pil_draw.Draw(self.dst_img)
+        draw = ImageDraw.Draw(self.dst_img)
         for track in gpx.tracks:
             for segment in track.segments:
                 idx = 0
-                x_from = 0
-                y_from = 0
-                z_from = 0
+                points = []
+                z_val = []
                 for point in segment.points:
                     if (idx == 0):
-                        x_from, y_from = self.lat_lon_to_image_xy(
+                        x, y = self.lat_lon_to_image_xy(
                             point.latitude, point.longitude)
-                        z_from = point.elevation
+                        points = [(x, y)]
+                        z_val = [point.elevation]
                     else:
-                        x_to, y_to = self.lat_lon_to_image_xy(
+                        x, y = self.lat_lon_to_image_xy(
                             point.latitude, point.longitude)
-                        z_to = point.elevation
-                        z = ((z_from + z_to) / 2) - self.e
+                        points.append((x, y))
+                        z_val.append(point.elevation)
+                        if(len(points) > 3):
+                            points.pop(0)
+                        if(len(z_val) > 3):
+                            z_val.pop(0)
+                        z = ((z_val[0] + z_val[-1]) / 2) - self.e
                         color_idx = max(min(z / self.de, 1), 0)
                         color0 = int((color_array[0][0] * (1 - color_idx)) + (color_array[1][0] * color_idx))
                         color1 = int((color_array[0][1] * (1 - color_idx)) + (color_array[1][1] * color_idx))
                         color2 = int((color_array[0][2] * (1 - color_idx)) + (color_array[1][2] * color_idx))
                         color = (color0, color1, color2)
-                        draw.line((x_from, y_from, x_to, y_to),
-                                  color, thickness, "curve")
-                        x_from = x_to
-                        y_from = y_to
-                        z_from = z_to
+                        draw.line(points, color, thickness, "curve")
                     idx += 1
 
     def draw_track_back(self, gpx, color, thickness):
         """ Draw GPX background onto map """
-        draw = pil_draw.Draw(self.dst_img)
+        draw = ImageDraw.Draw(self.dst_img)
+        points = []
         for track in gpx.tracks:
             for segment in track.segments:
-                idx = 0
-                x_from = 0
-                y_from = 0
                 for point in segment.points:
-                    if (idx == 0):
-                        x_from, y_from = self.lat_lon_to_image_xy(
-                            point.latitude, point.longitude)
-                        draw.ellipse(
-                            [
-                                x_from - thickness,
-                                y_from - thickness,
-                                x_from + thickness,
-                                y_from + thickness
-                            ], fill=color)
-                    else:
-                        x_to, y_to = self.lat_lon_to_image_xy(
-                            point.latitude, point.longitude)
-                        draw.line((x_from, y_from, x_to, y_to),
-                                  color, thickness, "curve")
-                        x_from = x_to
-                        y_from = y_to
-                    idx += 1
-                draw.ellipse(
-                    [
-                        x_from - thickness,
-                        y_from - thickness,
-                        x_from + thickness,
-                        y_from + thickness
-                    ], fill=color)
+                    x, y = self.lat_lon_to_image_xy(point.latitude, point.longitude)
+                    points.append((x, y))
+        draw.line(points, color, thickness, "curve")
+        draw.ellipse(
+            [
+                points[0][0] - thickness,
+                points[0][1] - thickness,
+                points[0][0] + thickness,
+                points[0][1] + thickness
+            ], fill=color)
+        draw.ellipse(
+            [
+                points[-1][0] - thickness,
+                points[-1][1] - thickness,
+                points[-1][0] + thickness,
+                points[-1][1] + thickness
+            ], fill=color)
 
     def crop_image(self, aspect):
         # aspect = (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1)
@@ -273,8 +264,15 @@ class MapCreator:
 
 
     def save_image(self, filename):
+        filename += ".png"
         print("Saving " + filename)
         self.dst_img.save(filename)
+
+    def save_print_image(self, filename):
+        filename += ".jpg"
+        print("Saving CMYK image " + filename)
+        img = ImageCms.profileToProfile(self.dst_img, '/Library/Application Support/Adobe/Color/Profiles/AdobeRGB1998.icc', '/Library/Application Support/Adobe/Color/Profiles/CoatedFOGRA39.icc', renderingIntent=0, outputMode='CMYK')
+        img.save(filename)
 
 class GpxObj:
     def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]], max_tile=default_max_tile) -> None:
@@ -325,33 +323,68 @@ if (__name__ == '__main__'):
         # Print progress bar
         percentage = i / len(gpx_files) * 100
         print("progress: |%s>%s| [%d%%]" % (int(percentage/2)*"=", int(50-percentage/2)*" ", percentage))
+
+        # set default values
+        max_tile = default_max_tile
+        margin = default_margin
+        aspect_ratio = default_aspect_ratio
+        color_low = default_color_low
+        color_high = default_color_high
+        color_back = default_color_back
+        track_thickness = default_track_thickness
+        background_thickness = default_background_thickness
+        map = default_map
+
         try:
+            # load custom config
+            config_path = gpx_files[i][:-3] + "yaml"
+            print(config_path)
+            if os.path.exists(config_path):
+                config = yaml.load(open(config_path), Loader=yaml.BaseLoader)
+                print(config)
+                if 'max_tile' in config:
+                    max_tile = int(config['max_tile'])
+                if 'margin' in config:
+                    margin = float(config['margin'])
+                if 'aspect_ratio' in config:
+                    aspect_ratio = float(config['aspect_ratio'])
+                if 'line_thickness' in config:
+                    track_thickness = int(config['line_thickness'])
+                if 'background_thickness' in config:
+                    background_thickness = int(config['background_thickness'])
+                if 'map' in config:
+                    map = config['map']
+            else:
+                print("no custom config")
 
             # Load the Gpx file
-            gpx = GpxObj(open(gpx_files[i]), default_max_tile)
+            gpx = GpxObj(open(gpx_files[i]), max_tile)
 
             # Print some track stats
             print(gpx.stats())
 
             # Cache the map
-            map_cacher = MapCacher(default_map, tile_cache)
+            map_cacher = MapCacher(map, tile_cache)
 
             # Create the map
-            map_creator = MapCreator.from_gpx(gpx, default_margin)
+            map_creator = MapCreator.from_gpx(gpx, margin)
             map_creator.create_area_background(map_cacher)
 
             # Draw background for better visibility
-            map_creator.draw_track_back(gpx.gpx, default_color_back, default_background_thickness)
+            map_creator.draw_track_back(gpx.gpx, color_back, background_thickness)
 
             # draw track
-            map_creator.draw_track(gpx.gpx, (default_color_low, default_color_high), default_track_thickness)
+            map_creator.draw_track(gpx.gpx, (color_low, color_high), track_thickness)
 
             # cut img to desired dimensions
-            map_creator.crop_image(default_aspect_ratio)
+            map_creator.crop_image(aspect_ratio)
 
             # export img
-            map_creator.save_image(gpx_files[i][:-4] + '-map.png')
+            map_creator.save_image(gpx_files[i][:-4] + '-map')
 
         except Exception as e:
             logging.exception(e)
+            error_count += 1
             print('Error processing %s' % gpx_files[i])
+        
+        print("Total Error: %d" % error_count)
