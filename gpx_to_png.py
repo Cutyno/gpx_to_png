@@ -18,6 +18,9 @@ tile_cache = "tmp"
 # Settings
 default_max_tile = 2
 default_margin = 0.01
+# Common aspect ratios
+# A4    1.59
+# 16:9  0.5625
 default_aspect_ratio = 1.59
 default_color_low = (4, 236, 240, 204)
 default_color_high = (245, 23, 32, 204)
@@ -27,7 +30,7 @@ default_background_thickness = 10
 default_map = "terrain"
 
 
-def format_time(time_s):
+def format_time(time_s: float) -> str:
     if not time_s:
         return 'n/a'
     minutes = math.floor(time_s / 60)
@@ -35,7 +38,7 @@ def format_time(time_s):
     return '%s:%s:%s' % (str(int(hours)).zfill(2), str(int(minutes % 60)).zfill(2), str(int(time_s % 60)).zfill(2))
 
 
-def osm_lat_lon_to_x_y_tile(lat_deg, lon_deg, zoom):
+def osm_lat_lon_to_x_y_tile(lat_deg: float, lon_deg: float, zoom: int) -> (float, float):
     """ Gets tile containing given coordinate at given zoom level """
     # taken from http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames, works for OSM maps
     lat_rad = math.radians(lat_deg)
@@ -46,7 +49,7 @@ def osm_lat_lon_to_x_y_tile(lat_deg, lon_deg, zoom):
     return (xtile, ytile)
 
 
-def osm_get_auto_zoom_level(min_lat, max_lat, min_lon, max_lon, max_n_tiles):
+def osm_get_auto_zoom_level(min_lat: float, max_lat: float, min_lon: float, max_lon: float, max_n_tiles: int) -> int:
     """ Gets zoom level which contains at maximum `max_n_tiles` """
     for z in range(0, 17):
         x1, y1 = osm_lat_lon_to_x_y_tile(min_lat, min_lon, z)
@@ -57,6 +60,31 @@ def osm_get_auto_zoom_level(min_lat, max_lat, min_lon, max_lon, max_n_tiles):
             return z
     return 17
 
+class GpxObj:
+    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]], max_tile=default_max_tile) -> None:
+        self.gpx = gpxpy.parse(xml)
+        self.min_lat, self.max_lat, self.min_lon, self.max_lon = self.gpx.get_bounds()
+        self.min_ele, self.max_ele = self.gpx.get_elevation_extremes()
+        self.z = osm_get_auto_zoom_level(self.min_lat, self.max_lat, self.min_lon, self.max_lon, max_tile)
+
+    def stats(self) -> str:
+        result = '--------------------------------------------------------------------------------\n'
+        result += '  GPX file\n'
+        start_time, end_time = self.gpx.get_time_bounds()
+        result += '  Started       : %s\n' % start_time
+        result += '  Ended         : %s\n' % end_time
+        result += '  Length        : %2.2fkm\n' % (self.gpx.length_3d() / 1000.)
+        moving_time, stopped_time, moving_distance, stopped_distance, max_speed = self.gpx.get_moving_data()
+        result += '  Moving time   : %s\n' % format_time(moving_time)
+        result += '  Stopped time  : %s\n' % format_time(stopped_time)
+        result += '  Max speed     : %2.2fm/s = %2.2fkm/h' % (max_speed, max_speed * 60 ** 2 / 1000)
+        uphill, downhill = self.gpx.get_uphill_downhill()
+        result += '  Total uphill  : %4.0fm\n' % uphill
+        result += '  Total downhill: %4.0fm\n' % downhill
+        result += '  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n' % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
+        result += '  Elev. Bounds  : [%1.4f,%1.4f]\n' % (self.min_ele, self.max_ele)
+        result += '  Zoom Level    : %d' % self.z
+        return result
 
 class MapCacher:
     """ Class for caching maps """
@@ -82,7 +110,7 @@ class MapCacher:
             self.servers = url["osm"]
         f.close()
 
-    def get_tile_urls(self, x: int, y: int, z: int):
+    def get_tile_urls(self, x: int, y: int, z: int) -> str:
         remote = self.servers.copy()
         for i in range(len(remote)):
             remote[i] = remote[i].format(x=x, y=y, z=z)
@@ -99,7 +127,7 @@ class MapCacher:
             for x in range(x_min, x_max + 1):
                 self.cache_tile(x, y, z)
 
-    def cache_tile(self, x, y, z) -> None:
+    def cache_tile(self, x: int, y: int, z: int) -> None:
         """ Downloads tile x,y,x into cache. Directories are automatically created, existing files are not retrieved. """
         src_urls = self.get_tile_urls(x, y, z)
         dst_filename = self.get_tile_filename(x, y, z)
@@ -131,7 +159,7 @@ class MapCacher:
 class MapCreator:
     """ Class for map drawing """
 
-    def __init__(self, min_lat, max_lat, min_lon, max_lon, z, min_ele=0, max_ele=0, max_tile=default_max_tile, margin=0) -> None:
+    def __init__(self, min_lat: float, max_lat: float, min_lon: float, max_lon: float, z: int, min_ele: float=0, max_ele: float=0, max_tile: int=default_max_tile, margin: float=0) -> None:
         """ constructor """
         x1, y1 = osm_lat_lon_to_x_y_tile(min_lat - margin, min_lon - margin, z)
         x2, y2 = osm_lat_lon_to_x_y_tile(max_lat + margin, max_lon + margin, z)
@@ -152,10 +180,10 @@ class MapCreator:
         print(self.w, self.h)
 
     @classmethod
-    def from_gpx(cls, gpx, _margin=0, max_tile=default_max_tile):
+    def from_gpx(cls, gpx: GpxObj, _margin: int=0, max_tile: int=default_max_tile):
         return cls(gpx.min_lat, gpx.max_lat, gpx.min_lon, gpx.max_lon, gpx.z, gpx.min_ele, gpx.max_ele, max_tile, _margin)
 
-    def create_area_background(self, map_cacher: MapCacher):
+    def create_area_background(self, map_cacher: MapCacher) -> None:
         """ Creates background map from cached tiles """
         map_cacher.cache_area(self.x1, self.x2, self.y1, self.y2, self.z)
         self.dst_img = Image.new("RGB", (self.w, self.h))
@@ -172,7 +200,7 @@ class MapCreator:
                 dst_y = (y-self.y1)*osm_tile_res
                 self.dst_img.paste(src_img, (dst_x, dst_y))
 
-    def lat_lon_to_image_xy(self, lat_deg, lon_deg):
+    def lat_lon_to_image_xy(self, lat_deg: float, lon_deg: float) -> (int, int):
         """ Internal. Converts lat, lon into dst_img coordinates in pixels """
         lat_rad = math.radians(lat_deg)
         n = 2.0 ** self.z
@@ -183,7 +211,7 @@ class MapCreator:
         img_y = int((ytile_frac-self.y1)*osm_tile_res)
         return (img_x, img_y)
 
-    def draw_track(self, gpx, color_array, thickness):
+    def draw_track(self, gpx, color_array, thickness) -> None:
         """ Draw GPX track onto map """
         draw = ImageDraw.Draw(self.dst_img)
         for track in gpx.tracks:
@@ -215,7 +243,7 @@ class MapCreator:
                         draw.line(points, color, thickness, "curve")
                     idx += 1
 
-    def draw_track_back(self, gpx, color, thickness):
+    def draw_track_back(self, gpx, color, thickness) -> None:
         """ Draw GPX background onto map """
         draw = ImageDraw.Draw(self.dst_img)
         points = []
@@ -240,7 +268,7 @@ class MapCreator:
                 points[-1][1] + thickness
             ], fill=color)
 
-    def crop_image(self, aspect):
+    def crop_image(self, aspect) -> None:
         # aspect = (self.y2 - self.y1 + 1) / (self.x2 - self.x1 + 1)
         x1 = abs(self.px)
         y1 = abs(self.py)
@@ -263,44 +291,16 @@ class MapCreator:
         self.dst_img = self.dst_img.crop((x1 * osm_tile_res, y1 * osm_tile_res, x2 * osm_tile_res, y2 * osm_tile_res))
 
 
-    def save_image(self, filename):
+    def save_image(self, filename: str) -> None:
         filename += ".png"
         print("Saving " + filename)
         self.dst_img.save(filename)
 
-    def save_print_image(self, filename):
+    def save_print_image(self, filename: str) -> None:
         filename += ".jpg"
         print("Saving CMYK image " + filename)
         img = ImageCms.profileToProfile(self.dst_img, '/Library/Application Support/Adobe/Color/Profiles/AdobeRGB1998.icc', '/Library/Application Support/Adobe/Color/Profiles/CoatedFOGRA39.icc', renderingIntent=0, outputMode='CMYK')
         img.save(filename)
-
-class GpxObj:
-    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]], max_tile=default_max_tile) -> None:
-        self.gpx = gpxpy.parse(xml)
-        self.min_lat, self.max_lat, self.min_lon, self.max_lon = self.gpx.get_bounds()
-        self.min_ele, self.max_ele = self.gpx.get_elevation_extremes()
-        self.z = osm_get_auto_zoom_level(self.min_lat, self.max_lat, self.min_lon, self.max_lon, max_tile)
-        
-        
-        
-    def stats(self) -> str:
-        result = '--------------------------------------------------------------------------------\n'
-        result += '  GPX file\n'
-        start_time, end_time = self.gpx.get_time_bounds()
-        result += '  Started       : %s\n' % start_time
-        result += '  Ended         : %s\n' % end_time
-        result += '  Length        : %2.2fkm\n' % (self.gpx.length_3d() / 1000.)
-        moving_time, stopped_time, moving_distance, stopped_distance, max_speed = self.gpx.get_moving_data()
-        result += '  Moving time   : %s\n' % format_time(moving_time)
-        result += '  Stopped time  : %s\n' % format_time(stopped_time)
-        result += '  Max speed     : %2.2fm/s = %2.2fkm/h' % (max_speed, max_speed * 60 ** 2 / 1000)
-        uphill, downhill = self.gpx.get_uphill_downhill()
-        result += '  Total uphill  : %4.0fm\n' % uphill
-        result += '  Total downhill: %4.0fm\n' % downhill
-        result += '  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n' % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
-        result += '  Elev. Bounds  : [%1.4f,%1.4f]\n' % (self.min_ele, self.max_ele)
-        result += '  Zoom Level    : %d' % self.z
-        return result
 
 if (__name__ == '__main__'):
     """ Program entry point """
@@ -380,6 +380,7 @@ if (__name__ == '__main__'):
             map_creator.crop_image(aspect_ratio)
 
             # export img
+            #map_creator.save_print_image(gpx_files[i][:-4] + '-map')
             map_creator.save_image(gpx_files[i][:-4] + '-map')
 
         except Exception as e:
