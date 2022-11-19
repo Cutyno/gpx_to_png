@@ -7,7 +7,7 @@ import io
 import yaml
 
 app = flask.Flask(__name__)
-app.config["DEBUG"] = True
+app.config["DEBUG"] = False
 
 def hex_to_rbg(hex_color):
     hex = str(hex_color)
@@ -142,4 +142,4 @@ def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=int("80"), debug=True)
+    app.run(host="0.0.0.0", port=int("80"), debug=False)
