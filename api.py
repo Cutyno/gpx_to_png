@@ -9,15 +9,17 @@ import yaml
 app = flask.Flask(__name__)
 app.config["DEBUG"] = False
 
+
 def hex_to_rbg(hex_color):
     hex = str(hex_color)
     return tuple(int(hex[i:i+2], 16) for i in (1, 3, 5))
+
 
 @app.route("/api/v1/tile/<map>/<int:z>/<int:x>/<int:y>", methods=['GET'])
 def get_map_tile(map: str, z: int, x: int, y: int):
     map_cacher = gpx_to_png.MapCacher(map, "tmp")
     map_cacher.cache_tile(x, y, z)
-    return flask.send_file(map_cacher.get_tile_filename(x, y, z), download_name='%d.png' % y, mimetype='image/png', as_attachment=True)
+    return flask.send_file(map_cacher.get_tile_filename(x, y, z), download_name=f'{y}.png', mimetype='image/png', as_attachment=True)
 
 
 @app.route("/api/v1/map/<map>/<int:z>/<float:lat_min>/<float:lat_max>/<float:lon_min>/<float:lon_max>", methods=['GET'])
@@ -88,11 +90,11 @@ def get_gpx_map(map):
                 f = io.BytesIO()
                 map_creator.dst_img.save(f, format='PNG')
                 f.seek(0)
-                return flask.send_file(f, download_name=gpx_file.filename + '-map.png', mimetype='image/png', as_attachment=True)
+                return flask.send_file(f, download_name=f'{gpx_file.filename}-map.png', mimetype='image/png', as_attachment=True)
 
             except Exception as e:
                 gpx_to_png.logging.exception(e)
-                print('Error processing %s' % gpx_file)
+                print(f'Error processing {gpx_file} [{e}]')
                 return "<h1>500</h1><p>The process could not be finished.</p>", 500
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
 
@@ -140,6 +142,7 @@ def set_gpx_map():
 @app.errorhandler(404)
 def page_not_found(e):
     return "<h1>404</h1><p>The resource could not be found.</p>", 404
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=int("80"), debug=False)

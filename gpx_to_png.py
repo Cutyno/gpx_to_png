@@ -2,7 +2,7 @@
 import sys
 import math
 import logging
-from typing import IO, TypeVar, Union
+from typing import IO, TypeVar, Union, Final, Tuple
 import requests
 import os
 import gpxpy
@@ -10,42 +10,42 @@ from PIL import Image, ImageDraw, ImageCms
 import glob
 import yaml
 
-error_count = 0
-# Constance
-osm_tile_res = 256
-server_file = "server.yaml"
-tile_cache = "tmp"
+error_count: int = 0
+# Constants
+osm_tile_res: Final = 256
+server_file: Final = "server.yaml"
+tile_cache: Final = "tmp"
 # Settings
-default_max_tile = 2
-default_margin = 0.01
+default_max_tile: int = 2
+default_margin: float = 0.01
 # Common aspect ratios
 # A4    1.59
 # 16:9  0.5625
-default_aspect_ratio = 1.59
-default_color_low = (4, 236, 240, 204)
-default_color_high = (245, 23, 32, 204)
-default_color_back = (255, 255, 255)
-default_track_thickness = 7
-default_background_thickness = 10
-default_map = "terrain"
+default_aspect_ratio: float = 1.59
+default_color_low: Tuple[int, int, int, int] = (4, 236, 240, 204)
+default_color_high: Tuple[int, int, int, int] = (245, 23, 32, 204)
+default_color_back: Tuple[int, int, int] = (255, 255, 255)
+default_track_thickness: int = 7
+default_background_thickness: int = 10
+default_map: str = "terrain"
 
 
 def format_time(time_s: float) -> str:
     if not time_s:
         return 'n/a'
-    minutes = math.floor(time_s / 60)
-    hours = math.floor(minutes / 60)
-    return '%s:%s:%s' % (str(int(hours)).zfill(2), str(int(minutes % 60)).zfill(2), str(int(time_s % 60)).zfill(2))
+    minutes: int = math.floor(time_s / 60)
+    hours: int = math.floor(minutes / 60)
+    return f"{str(int(hours)).zfill(2)}:{str(int(minutes % 60)).zfill(2)}:{str(int(time_s % 60)).zfill(2)}"
 
 
 def osm_lat_lon_to_x_y_tile(lat_deg: float, lon_deg: float, zoom: int) -> (float, float):
     """ Gets tile containing given coordinate at given zoom level """
-    # taken from http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames, works for OSM maps
-    lat_rad = math.radians(lat_deg)
-    n = 2 ** zoom
-    xtile = (lon_deg + 180) / 360 * n
-    ytile = (1.0 - math.log(math.tan(lat_rad) +
-                                (1 / math.cos(lat_rad))) / math.pi) / 2 * n
+    # taken from http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames,
+    # works for OSM maps
+    lat_rad: float = math.radians(lat_deg)
+    n: int = 2 ** zoom
+    xtile: float = (lon_deg + 180) / 360 * n
+    ytile: float = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2 * n
     return (xtile, ytile)
 
 
@@ -56,12 +56,13 @@ def osm_get_auto_zoom_level(min_lat: float, max_lat: float, min_lon: float, max_
         x2, y2 = osm_lat_lon_to_x_y_tile(max_lat, max_lon, z)
         max_tiles = max(abs(x2 - x1), abs(y2 - y1))
         if (max_tiles > max_n_tiles):
-            print("Max tiles: %d" % max_tiles)
+            print(f"Max tiles: {max_tiles}")
             return z
     return 17
 
+
 class GpxObj:
-    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]], max_tile=default_max_tile) -> None:
+    def __init__(self, xml: Union[TypeVar("AnyStr"), IO[str]], max_tile: int = default_max_tile) -> None:
         self.gpx = gpxpy.parse(xml)
         self.min_lat, self.max_lat, self.min_lon, self.max_lon = self.gpx.get_bounds()
         self.min_ele, self.max_ele = self.gpx.get_elevation_extremes()
@@ -71,41 +72,46 @@ class GpxObj:
         result = '--------------------------------------------------------------------------------\n'
         result += '  GPX file\n'
         start_time, end_time = self.gpx.get_time_bounds()
-        result += '  Started       : %s\n' % start_time
-        result += '  Ended         : %s\n' % end_time
-        result += '  Length        : %2.2fkm\n' % (self.gpx.length_3d() / 1000.)
+        result += f'  Started       : {start_time}\n'
+        result += f'  Ended         : {end_time}\n'
+        result += f'  Length        : {(self.gpx.length_3d() / 1000.0): 2.2f}km\n'
         moving_time, stopped_time, moving_distance, stopped_distance, max_speed = self.gpx.get_moving_data()
-        result += '  Moving time   : %s\n' % format_time(moving_time)
-        result += '  Stopped time  : %s\n' % format_time(stopped_time)
-        result += '  Max speed     : %2.2fm/s = %2.2fkm/h' % (max_speed, max_speed * 60 ** 2 / 1000)
+        result += f'  Moving time   : {format_time(moving_time)}\n'
+        result += f'  Stopped time  : {format_time(stopped_time)}\n'
+        result += f'  Max speed     : {max_speed: 2.2f}m/s = {(max_speed * 60 ** 2 / 1000): 2.2f}km/h'
         uphill, downhill = self.gpx.get_uphill_downhill()
-        result += '  Total uphill  : %4.0fm\n' % uphill
-        result += '  Total downhill: %4.0fm\n' % downhill
-        result += '  Bounds        : [%1.4f,%1.4f,%1.4f,%1.4f]\n' % (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
-        result += '  Elev. Bounds  : [%1.4f,%1.4f]\n' % (self.min_ele, self.max_ele)
-        result += '  Zoom Level    : %d' % self.z
+        result += f'  Total uphill  : {uphill: 4.0f}m\n'
+        result += f'  Total downhill: {downhill: 4.0f}m\n'
+        result += f'  Bounds        : [{self.min_lat: 1.4f},{self.max_lat: 1.4f},{self.min_lon: 1.4f},{self.max_lon: 1.4f}]\n'
+        result += f'  Elev. Bounds  : [{self.min_ele: 1.4f},{self.max_ele: 1.4f}]\n'
+        result += f'  Zoom Level    : {self.z}'
         return result
+
 
 class MapCacher:
     """ Class for caching maps """
 
-    def __init__(self, map: str, folder: str) -> None:
-        self.map_name = map
+    def __init__(self, _map: str, folder: str) -> None:
+        self.map_name = _map
         f = open(server_file, 'r')
-        url = yaml.load(f, Loader=yaml.BaseLoader) # Loader=yaml,BaseLoader Only loads the most basic YAML. All scalars are loaded as strings.
+        # Loader=yaml,BaseLoader Only loads the most basic YAML.
+        # All scalars are loaded as strings.
+        url = yaml.load(f, Loader=yaml.BaseLoader)
         try:
-            self.servers = url[map]
+            self.servers = url[_map]
         except KeyError:
             self.servers = url["osm"]
         f.close()
         self.root = folder
 
-    def change_server(self, map: str) -> None:
-        self.map_name = map
+    def change_server(self, _map: str) -> None:
+        self.map_name = _map
         f = open(server_file, 'r')
-        url = yaml.load(f, Loader=yaml.BaseLoader) # Loader=yaml,BaseLoader Only loads the most basic YAML. All scalars are loaded as strings.
+        # Loader=yaml,BaseLoader Only loads the most basic YAML.
+        # All scalars are loaded as strings.
+        url = yaml.load(f, Loader=yaml.BaseLoader)
         try:
-            self.servers = url[map]
+            self.servers = url[_map]
         except KeyError:
             self.servers = url["osm"]
         f.close()
@@ -121,14 +127,16 @@ class MapCacher:
 
     def cache_area(self, x_min, x_max, y_min, y_max, z) -> None:
         """ Downloads necessary tiles to cache """
-        print("Caching tiles x1=%d y1=%d x2=%d y2=%d" %
-              (x_min, y_min, x_max, y_max))
+        print(f"Caching tiles x1={x_min} y1={y_min} x2={x_max} y2={y_max}")
         for y in range(y_min, y_max + 1):
             for x in range(x_min, x_max + 1):
                 self.cache_tile(x, y, z)
 
     def cache_tile(self, x: int, y: int, z: int) -> None:
-        """ Downloads tile x,y,x into cache. Directories are automatically created, existing files are not retrieved. """
+        """
+        Downloads tile x,y,x into cache.
+        Directories are automatically created, existing files are not retrieved.
+        """
         src_urls = self.get_tile_urls(x, y, z)
         dst_filename = self.get_tile_filename(x, y, z)
 
@@ -139,7 +147,7 @@ class MapCacher:
             return
         data = None
         for i in range(len(src_urls)):
-            print("Downloading from Mirror %d: %s ..." % (i, src_urls[i]))
+            print(f"Downloading from Mirror {i}: {src_urls[i]} ...")
             try:
                 response = requests.get(src_urls[i])
                 code = response.status_code
@@ -147,10 +155,10 @@ class MapCacher:
                     data = response.content
                     break
                 else:
-                    print("Error occurred! Response code: %d" % code)
-            except:
-                print("ERROR BY ACCESSING URL: %s" % src_urls[i])
-        if data != None:
+                    print(f"Error occurred! Response code: {code}")
+            except Exception() as e:
+                print(f"ERROR BY ACESSING URL: {src_urls[i]} [{e}]")
+        if data is not None:
             f = open(dst_filename, "wb")
             f.write(data)
             f.close()
@@ -159,7 +167,16 @@ class MapCacher:
 class MapCreator:
     """ Class for map drawing """
 
-    def __init__(self, min_lat: float, max_lat: float, min_lon: float, max_lon: float, z: int, min_ele: float=0, max_ele: float=0, max_tile: int=default_max_tile, margin: float=0) -> None:
+    def __init__(self,
+                 min_lat: float,
+                 max_lat: float,
+                 min_lon: float,
+                 max_lon: float,
+                 z: int,
+                 min_ele: float = 0,
+                 max_ele: float = 0,
+                 max_tile: int = default_max_tile,
+                 margin: float = 0) -> None:
         """ constructor """
         x1, y1 = osm_lat_lon_to_x_y_tile(min_lat - margin, min_lon - margin, z)
         x2, y2 = osm_lat_lon_to_x_y_tile(max_lat + margin, max_lon + margin, z)
@@ -180,7 +197,7 @@ class MapCreator:
         print(self.w, self.h)
 
     @classmethod
-    def from_gpx(cls, gpx: GpxObj, _margin: int=0, max_tile: int=default_max_tile):
+    def from_gpx(cls, gpx: GpxObj, _margin: int = 0, max_tile: int = default_max_tile):
         return cls(gpx.min_lat, gpx.max_lat, gpx.min_lon, gpx.max_lon, gpx.z, gpx.min_ele, gpx.max_ele, max_tile, _margin)
 
     def create_area_background(self, map_cacher: MapCacher) -> None:
@@ -193,11 +210,10 @@ class MapCreator:
                     src_img = Image.open(
                         map_cacher.get_tile_filename(x, y, self.z))
                 except Exception as e:
-                    print("Error processing file " +
-                          map_cacher.get_tile_filename(x, y, self.z))
+                    print(f"Error processing file {map_cacher.get_tile_filename(x, y, self.z)} [{e}]")
                     src_img = Image.open("error.png")
-                dst_x = (x-self.x1)*osm_tile_res
-                dst_y = (y-self.y1)*osm_tile_res
+                dst_x = (x - self.x1) * osm_tile_res
+                dst_y = (y - self.y1) * osm_tile_res
                 self.dst_img.paste(src_img, (dst_x, dst_y))
 
     def lat_lon_to_image_xy(self, lat_deg: float, lon_deg: float) -> (int, int):
@@ -205,8 +221,7 @@ class MapCreator:
         lat_rad = math.radians(lat_deg)
         n = 2.0 ** self.z
         xtile_frac = (lon_deg + 180) / 360 * n
-        ytile_frac = (1.0 - math.log(math.tan(lat_rad) +
-                                     (1 / math.cos(lat_rad))) / math.pi) / 2 * n
+        ytile_frac = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2 * n
         img_x = int((xtile_frac-self.x1)*osm_tile_res)
         img_y = int((ytile_frac-self.y1)*osm_tile_res)
         return (img_x, img_y)
@@ -230,9 +245,9 @@ class MapCreator:
                             point.latitude, point.longitude)
                         points.append((x, y))
                         z_val.append(point.elevation)
-                        if(len(points) > 3):
+                        if len(points) > 3:
                             points.pop(0)
-                        if(len(z_val) > 3):
+                        if len(z_val) > 3:
                             z_val.pop(0)
                         z = ((z_val[0] + z_val[-1]) / 2) - self.e
                         color_idx = max(min(z / self.de, 1), 0)
@@ -276,20 +291,19 @@ class MapCreator:
         y2 = y1 + self.dy
         dy = aspect * self.dx
         dx = self.dy / aspect
-        print("dy1 = %1.4f dy2 = %1.4f dx1 = %1.4f dx2 = %1.4f" % (self.dy, dy, self.dx, dx))
-        if(dy > self.dy):
+        print(f"dy1 = {self.dy: 1.4f} dy2 = {dy: 1.4f} dx1 = {self.dx: 1.4f} dx2 = {dx: 1.4f}")
+        if dy > self.dy:
             dy = (dy - self.dy) / 2
             y1 -= dy
             y2 += dy
-        elif(dx > self.dx):
+        elif dx > self.dx:
             dx = (dx - self.dx) / 2
             x1 -= dx
             x2 += dx
         else:
             print("can't crop img")
-        print(" crop to x1 = %1.4f y1 = %1.4f x2 = %1.4f y2 = %1.4f" % (x1, y1, x2, y2))
+        print(f" crop to x1 = {x1: 1.4f} y1 = {y1: 1.4f} x2 = {x2: 1.4f} y2 = {y2: 1.4f}")
         self.dst_img = self.dst_img.crop((x1 * osm_tile_res, y1 * osm_tile_res, x2 * osm_tile_res, y2 * osm_tile_res))
-
 
     def save_image(self, filename: str) -> None:
         filename += ".png"
@@ -299,15 +313,22 @@ class MapCreator:
     def save_print_image(self, filename: str) -> None:
         filename += ".jpg"
         print("Saving CMYK image " + filename)
-        img = ImageCms.profileToProfile(self.dst_img, '/Library/Application Support/Adobe/Color/Profiles/AdobeRGB1998.icc', '/Library/Application Support/Adobe/Color/Profiles/CoatedFOGRA39.icc', renderingIntent=0, outputMode='CMYK')
+        img = ImageCms.profileToProfile(
+            self.dst_img,
+            '/Library/Application Support/Adobe/Color/Profiles/AdobeRGB1998.icc',
+            '/Library/Application Support/Adobe/Color/Profiles/CoatedFOGRA39.icc',
+            renderingIntent=0,
+            outputMode='CMYK'
+        )
         img.save(filename)
 
-if (__name__ == '__main__'):
+
+if __name__ == '__main__':
     """ Program entry point """
 
     # Search for gpx files
     gpx_files = []
-    if(len(sys.argv) > 1):
+    if len(sys.argv) > 1:
         for i in range(1, len(sys.argv)):
             gpx_files.extend(glob.glob(r"{}/*.gpx".format(sys.argv[i])))
     else:
@@ -322,7 +343,7 @@ if (__name__ == '__main__'):
 
         # Print progress bar
         percentage = i / len(gpx_files) * 100
-        print("progress: |%s>%s| [%d%%]" % (int(percentage/2)*"=", int(50-percentage/2)*" ", percentage))
+        print(f"progress: |{int(percentage/2)*'='}>{int(50-percentage/2)*' '}| [{percentage}%]")
 
         # set default values
         max_tile = default_max_tile
@@ -380,12 +401,12 @@ if (__name__ == '__main__'):
             map_creator.crop_image(aspect_ratio)
 
             # export img
-            #map_creator.save_print_image(gpx_files[i][:-4] + '-map')
+            # map_creator.save_print_image(gpx_files[i][:-4] + '-map')
             map_creator.save_image(gpx_files[i][:-4] + '-map')
 
         except Exception as e:
             logging.exception(e)
             error_count += 1
-            print('Error processing %s' % gpx_files[i])
-        
-        print("Total Error: %d" % error_count)
+            print(f'Error processing {gpx_files[i]} [{e}]')
+
+        print(f"Total Error: {error_count}")
