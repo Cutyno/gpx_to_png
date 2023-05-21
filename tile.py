@@ -55,6 +55,8 @@ class TileMask(Tile):
 
     def clear_mask(self, track: list[(float, float)]) -> None:
         draw = ImageDraw.Draw(self.tile)
+        if len(track) == 0:
+            return
         draw.line(track, 55, 25, joint="curve")
         draw.line(track, 105, 20, joint="curve")
         draw.line(track, 155, 15, joint="curve")
