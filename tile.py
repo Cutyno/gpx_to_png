@@ -1,4 +1,5 @@
 import math
+import os
 from PIL import Image, ImageDraw
 from TileCacher import TileCacher, osm_tile_res
 
@@ -40,23 +41,46 @@ class Tile:
         return self.tile
 
 
-class TileFog(Tile):
+class TileMask(Tile):
 
-    def __init__(self, x: int, y: int, z: int, cacher: TileCacher) -> None:
-        super().__init__(x, y, z, cacher)
-        self.fog = Image.open("fog.png").convert(mode="RGB")
-        self.mask = Image.new("L", self.tile.size, color=20)
+    def __init__(self, _id: str, x: int, y: int, z: int) -> None:
+        self._id = _id
+        self.x = x
+        self.y = y
+        self.z = z
+        try:
+            self.tile = Image.open(r"mask/%s/%d/%d/%d.png" % (_id, z, x, y))
+        except Exception:
+            self.tile = Image.new("L", (osm_tile_res, osm_tile_res), color=20)
 
-    def clear_fog(self, track: list[(float, float)]) -> None:
-        draw = ImageDraw.Draw(self.mask)
+    def clear_mask(self, track: list[(float, float)]) -> None:
+        draw = ImageDraw.Draw(self.tile)
         draw.line(track, 55, 25, joint="curve")
         draw.line(track, 105, 20, joint="curve")
         draw.line(track, 155, 15, joint="curve")
         draw.line(track, 205, 10, joint="curve")
         draw.line(track, 255, 5, joint="curve")
 
-    def clear_fog_gpx(self, gpx) -> None:
-        self.clear_fog(self.gpx_to_list(gpx))
+    def clear_mask_gpx(self, gpx) -> None:
+        self.clear_mask(self.gpx_to_list(gpx))
+
+    def save_mask(self) -> None:
+        dst_filename = "mask/%s/%d/%d/%d.png" % (self._id, self.z, self.x, self.y)
+        dst_dir = os.path.dirname(dst_filename)
+        if not os.path.exists(dst_dir):
+            os.makedirs(dst_dir, exist_ok=True)
+        self.tile.save(dst_filename)
+
+
+class TileFog(Tile):
+
+    def __init__(self, _id: str, x: int, y: int, z: int, cacher: TileCacher) -> None:
+        super().__init__(x, y, z, cacher)
+        self.fog = Image.open("fog.png").convert(mode="RGB")
+        try:
+            self.mask = Image.open(r"mask/%s/%d/%d/%d.png" % (_id, z, x, y))
+        except Exception:
+            self.mask = Image.new("L", (osm_tile_res, osm_tile_res), color=20)
 
     def get_tile(self) -> Image:
         tile = self.fog.copy()
