@@ -82,7 +82,10 @@ class GpxObj:
         result += f'  Total uphill  : {uphill: 4.0f}m\n'
         result += f'  Total downhill: {downhill: 4.0f}m\n'
         result += f'  Bounds        : [{self.min_lat: 1.4f},{self.max_lat: 1.4f},{self.min_lon: 1.4f},{self.max_lon: 1.4f}]\n'
-        result += f'  Elev. Bounds  : [{self.min_ele: 1.4f},{self.max_ele: 1.4f}]\n'
+        if self.min_ele is None or self.max_ele is None:
+            result += '  === No elevation Data ===\n'
+        else:
+            result += f'  Elev. Bounds  : [{self.min_ele: 1.4f},{self.max_ele: 1.4f}]\n'
         result += f'  Zoom Level    : {self.z}'
         return result
 
@@ -123,8 +126,11 @@ class MapCreator:
         self.y1 = int(min(y1, y2)) - max_tile
         self.y2 = int(max(y1, y2)) + max_tile
         self.py = min(y1, y2) - self.y1
-        self.e = min(min_ele, max_ele)
-        self.de = max(min_ele, max_ele) - self.e
+        if min_ele is None or max_ele is None:
+            self.e = None
+        else:
+            self.e = min(min_ele, max_ele)
+            self.de = max(min_ele, max_ele) - self.e
         self.w = (self.x2 - self.x1 + 1) * osm_tile_res
         self.h = (self.y2 - self.y1 + 1) * osm_tile_res
         self.z = z
@@ -183,8 +189,11 @@ class MapCreator:
                             points.pop(0)
                         if len(z_val) > 3:
                             z_val.pop(0)
-                        z = ((z_val[0] + z_val[-1]) / 2) - self.e
-                        color_idx = max(min(z / self.de, 1), 0)
+                        if self.e is None:
+                            color_idx = 0
+                        else:
+                            z = ((z_val[0] + z_val[-1]) / 2) - self.e
+                            color_idx = max(min(z / self.de, 1), 0)
                         color0 = int((color_array[0][0] * (1 - color_idx)) + (color_array[1][0] * color_idx))
                         color1 = int((color_array[0][1] * (1 - color_idx)) + (color_array[1][1] * color_idx))
                         color2 = int((color_array[0][2] * (1 - color_idx)) + (color_array[1][2] * color_idx))
