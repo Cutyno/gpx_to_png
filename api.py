@@ -5,6 +5,9 @@ from werkzeug.utils import redirect
 import gpx_to_png
 import io
 import yaml
+from tile import TileMask, TileFog
+import glob
+import gpxpy
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = False
@@ -19,7 +22,26 @@ def hex_to_rbg(hex_color):
 def get_map_tile(map: str, z: int, x: int, y: int):
     map_cacher = gpx_to_png.MapCacher(map, "tmp")
     map_cacher.cache_tile(x, y, z)
-    return flask.send_file(map_cacher.get_tile_filename(x, y, z), download_name=f'{y}.png', mimetype='image/png', as_attachment=True)
+    return flask.send_file(map_cacher.get_tile_filename(x, y, z), attachment_filename=f'{y}.png', mimetype='image/png', as_attachment=True)
+
+
+@app.route("/api/v1/fog-tile/<user>/<map>/<int:z>/<int:x>/<int:y>", methods=['GET'])
+def get_fog_tile(user: str, map: str, z: int, x: int, y: int):
+    print(f"Generating new fog tile({x} {y} {z})...", end='')
+    mask = TileMask(user, x, y, z)
+    if not mask.cached:
+        gpx_files = glob.glob(r"/path/to/gpx/*.gpx")
+        for i in range(len(gpx_files)):
+            gpx = gpxpy.parse(open(gpx_files[i]))
+            mask.clear_mask_gpx(gpx)
+        mask.save_mask()
+    map_cacher = gpx_to_png.MapCacher(map, "tmp")
+    tile = TileFog(user, x, y, z, map_cacher)
+    f = io.BytesIO()
+    tile.get_tile().save(f, format='PNG')
+    print("done")
+    f.seek(0)
+    return flask.send_file(f, download_name=f'{y}.png', mimetype='image/png', as_attachment=True)
 
 
 @app.route("/api/v1/map/<map>/<int:z>/<float:lat_min>/<float:lat_max>/<float:lon_min>/<float:lon_max>", methods=['GET'])
@@ -135,6 +157,45 @@ def set_gpx_map():
     <br><br>
     <input type=submit value=Upload>
     </form>
+    '''
+    return page
+
+
+@app.route("/fog")
+def fog_map():
+    page = '''<!doctype html>
+    <head>
+    <title>Fog of war</title>
+     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+     <!-- Make sure you put this AFTER Leaflet's CSS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+    </head>
+    <body>
+    <h1>Fog of war - obscure the world you don't know</h1>
+    <div id="map" style="height: 400px;" class="leaflet-container leaflet-touch leaflet-retina leaflet-safari leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom"></div>
+    <script>
+            var fog = L.tileLayer('/api/v1/fog-tile/Cutyno/terrain/{z}/{x}/{y}', {
+              maxZoom: 18,
+              tileSize: 256
+            });
+            var base = L.tileLayer('/api/v1/tile/terrain/{z}/{x}/{y}', {
+              maxZoom: 18,
+              tileSize: 256
+            });
+            var map = L.map('map', {layers: [fog]}).setView([49.452030, 11.076750], 13);
+
+            var baseMaps = {
+                "Fog of war": fog,
+                "Base map": base
+            };
+
+            var layerControl = L.control.layers(baseMaps).addTo(map);
+        </script>
+    </body>
     '''
     return page
 

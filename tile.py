@@ -50,8 +50,10 @@ class TileMask(Tile):
         self.z = z
         try:
             self.tile = Image.open(r"mask/%s/%d/%d/%d.png" % (_id, z, x, y))
+            self.cached = True
         except Exception:
             self.tile = Image.new("L", (osm_tile_res, osm_tile_res), color=20)
+            self.cached = False
 
     def clear_mask(self, track: list[(float, float)]) -> None:
         draw = ImageDraw.Draw(self.tile)
