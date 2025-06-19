@@ -22,7 +22,7 @@ def hex_to_rbg(hex_color):
 def get_map_tile(map: str, z: int, x: int, y: int):
     map_cacher = gpx_to_png.MapCacher(map, "tmp")
     map_cacher.cache_tile(x, y, z)
-    return flask.send_file(map_cacher.get_tile_filename(x, y, z), attachment_filename=f'{y}.png', mimetype='image/png', as_attachment=True)
+    return flask.send_file(map_cacher.get_tile_filename(x, y, z), download_name=f'{y}.png', mimetype='image/png', as_attachment=True)
 
 
 @app.route("/api/v1/fog-tile/<user>/<map>/<int:z>/<int:x>/<int:y>", methods=['GET'])
